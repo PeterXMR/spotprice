@@ -1,0 +1,16 @@
+[package]
+name = "satsprice-cache"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+satsprice-aggregator = { path = "../aggregator" }
+moka = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }
+rust_decimal_macros = "1"
+tokio = { version = "1", features = ["rt", "macros", "time", "test-util"] }

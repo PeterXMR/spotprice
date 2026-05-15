@@ -1,0 +1,45 @@
+[package]
+name = "satsprice-ffi"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+name = "satsprice_ffi"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+satsprice-aggregator = { path = "../aggregator" }
+satsprice-cache = { path = "../cache" }
+satsprice-convert = { path = "../convert" }
+satsprice-price-sources = { path = "../price-sources" }
+
+uniffi = { workspace = true, features = ["cli"] }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+rust_decimal_macros = "1"
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+
+[features]
+default = []
+# Enabled when bundling for mobile so reqwest links rustls-platform-verifier.
+mobile-tls = ["dep:rustls", "dep:rustls-platform-verifier"]
+
+[dependencies.rustls]
+workspace = true
+optional = true
+
+[dependencies.rustls-platform-verifier]
+workspace = true
+optional = true

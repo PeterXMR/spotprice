@@ -1,0 +1,63 @@
+[workspace]
+# Members are added phase-by-phase as crates are created.
+# Final set: convert, aggregator, price-sources, cache, ffi.
+members = [
+    "convert",
+    "aggregator",
+    "price-sources",
+    "cache",
+    "ffi",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/USER/satsprice"
+
+[workspace.dependencies]
+# FFI
+uniffi = { version = "0.31", features = ["tokio"] }
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
+
+# HTTP — rustls-only, no native OpenSSL.
+# Tests use plain http:// so manual-roots is enough; production swaps in
+# rustls-platform-verifier via `use_preconfigured_tls` in the ffi crate.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots", "json"] }
+rustls = "0.23"
+rustls-platform-verifier = "0.7"
+
+# Async traits — until dyn-compatible async trait fns land in stable
+async-trait = "0.1"
+
+# JSON
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Errors
+thiserror = "2"
+
+# Decimal math
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+
+# Storage
+sled = "0.34"
+moka = { version = "0.12", features = ["future"] }
+
+# Logging
+tracing = "0.1"
+
+# Test deps
+tokio-test = "0.4"
+wiremock = "0.6"
+proptest = "1"
+
+[profile.release]
+strip = "symbols"
+lto = "thin"
+codegen-units = 1
+opt-level = "z"        # optimize for size; switch to "3" if profiling shows hot loops
+panic = "abort"

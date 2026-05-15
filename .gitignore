@@ -1,0 +1,59 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Generated UniFFI bindings
+**/generated/
+
+# Kotlin / Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+
+# Android Studio
+.gradle-cache/
+gradle-app.setting
+
+# Xcode / iOS
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+xcuserdata/
+.build/
+Pods/
+*.xcframework.zip
+
+# Generated artifacts
+app/android/src/main/jniLibs/
+app/ios/SatsPriceCore/
+app/ios/SatsPriceCore.xcframework/
+
+# macOS noise
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor noise
+*.swp
+*~
+.vscode/
+
+# Secrets / signing — never commit
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+keystore.properties
+google-services.json
+GoogleService-Info.plist
+
+# Logs and profiles
+*.log
+hs_err_pid*

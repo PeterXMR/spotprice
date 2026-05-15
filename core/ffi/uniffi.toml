@@ -1,0 +1,7 @@
+[bindings.kotlin]
+package_name = "price.sats.core"
+cdylib_name = "satsprice_ffi"
+
+[bindings.swift]
+module_name = "SatsPriceCore"
+ffi_module_name = "satspriceFFI"
