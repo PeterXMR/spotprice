@@ -33,13 +33,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,64 +43,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Which field the user last edited. Drives the canonical sats value that every
- * other field projects from — so typing in EUR re-renders sats, BTC, and the
- * other selected fiats off the same single source.
- */
-private sealed interface InputSource {
-    object Sats : InputSource
-    object Btc : InputSource
-    data class Fiat(val code: String) : InputSource
-}
-
-/**
- * Sats / BTC / multi-fiat converter. Any selected fiat row is independently
- * editable; the bottom currency picker is a multi-select modal sheet.
+ * Sats / BTC / multi-fiat converter. State lives in [ConverterViewModel] so it
+ * survives Activity recreation; the 65s background refresh is also driven from
+ * there.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConverterScreen(core: PriceCore) {
-    val scope = rememberCoroutineScope()
-    val allFiats = remember { core.supportedFiats() }
-
-    val selectedFiats = remember { mutableStateListOf("usd") }
-    val snapshots = remember { mutableStateMapOf<String, PriceSnapshot>() }
-    val loadingFiats = remember { mutableStateMapOf<String, Boolean>() }
-    val errorFiats = remember { mutableStateMapOf<String, String>() }
-
-    var inputSource: InputSource by remember { mutableStateOf(InputSource.Sats) }
-    var inputAmount by remember { mutableStateOf("100000000") }
+fun ConverterScreen(vm: ConverterViewModel = koinViewModel()) {
     var pickerOpen by remember { mutableStateOf(false) }
 
-    suspend fun loadPrice(fiat: String) {
-        loadingFiats[fiat] = true
-        errorFiats.remove(fiat)
-        try {
-            snapshots[fiat] = core.fetchPrice(fiat)
-        } catch (t: Throwable) {
-            errorFiats[fiat] = t.message ?: t::class.simpleName ?: "fetch failed"
-        } finally {
-            loadingFiats[fiat] = false
-        }
-    }
-
-    // Key on contents (not list identity) so adding a fiat re-runs the effect.
-    LaunchedEffect(selectedFiats.joinToString(",")) {
-        selectedFiats.forEach { fiat ->
-            if (snapshots[fiat] == null && loadingFiats[fiat] != true) {
-                launch { loadPrice(fiat) }
-            }
-        }
-    }
-
-    val primaryFiat = selectedFiats.firstOrNull() ?: "usd"
-    val primarySnapshot = snapshots[primaryFiat]
-    val primaryLoading = loadingFiats[primaryFiat] == true
-    val primaryError = errorFiats[primaryFiat]
-    val anyLoading = loadingFiats.any { it.value }
+    val primaryFiat = vm.selectedFiats.firstOrNull() ?: "usd"
+    val primarySnapshot = vm.snapshots[primaryFiat]
+    val primaryLoading = vm.loadingFiats[primaryFiat] == true
+    val primaryError = vm.errorFiats[primaryFiat]
+    val anyLoading = vm.isAnyLoading
 
     Scaffold(
         topBar = {
@@ -112,11 +67,7 @@ fun ConverterScreen(core: PriceCore) {
                 title = { Text("SatsPrice") },
                 actions = {
                     FilledTonalButton(
-                        onClick = {
-                            scope.launch {
-                                selectedFiats.forEach { launch { loadPrice(it) } }
-                            }
-                        },
+                        onClick = { vm.refreshAll() },
                         enabled = !anyLoading,
                     ) { Text(if (anyLoading) "…" else "Refresh") }
                     Spacer(Modifier.width(8.dp))
@@ -126,7 +77,7 @@ fun ConverterScreen(core: PriceCore) {
         },
         bottomBar = {
             BottomCurrencyBar(
-                count = selectedFiats.size,
+                count = vm.selectedFiats.size,
                 onClick = { pickerOpen = true },
             )
         },
@@ -148,44 +99,28 @@ fun ConverterScreen(core: PriceCore) {
                 fiat = primaryFiat,
             )
 
-            val sats = computeSats(core, inputSource, inputAmount, snapshots)
-
             AmountField(
                 label = "Sats",
-                value = if (inputSource == InputSource.Sats) inputAmount
-                        else sats?.toString().orEmpty(),
-                onChange = { inputSource = InputSource.Sats; inputAmount = it },
+                value = vm.displayedSats(),
+                onChange = { vm.setInput(InputSource.Sats, it) },
                 keyboardType = KeyboardType.Number,
             )
             AmountField(
                 label = "BTC",
-                value = if (inputSource == InputSource.Btc) inputAmount
-                        else sats?.let { core.convertSatsToBtc(it) }.orEmpty(),
-                onChange = { inputSource = InputSource.Btc; inputAmount = it },
+                value = vm.displayedBtc(),
+                onChange = { vm.setInput(InputSource.Btc, it) },
                 keyboardType = KeyboardType.Decimal,
             )
 
-            selectedFiats.forEach { fiat ->
-                val price = snapshots[fiat]?.price
-                val isEditing = (inputSource as? InputSource.Fiat)?.code == fiat
+            vm.selectedFiats.forEach { fiat ->
                 FiatRow(
                     fiat = fiat,
-                    value = if (isEditing) inputAmount
-                            else priceFor(core, sats, price),
-                    loading = loadingFiats[fiat] == true,
-                    error = errorFiats[fiat],
-                    removable = selectedFiats.size > 1,
-                    onChange = {
-                        inputSource = InputSource.Fiat(fiat)
-                        inputAmount = it
-                    },
-                    onRemove = {
-                        if (isEditing) {
-                            inputSource = InputSource.Sats
-                            inputAmount = sats?.toString() ?: "100000000"
-                        }
-                        selectedFiats.remove(fiat)
-                    },
+                    value = vm.displayedFiat(fiat),
+                    loading = vm.loadingFiats[fiat] == true,
+                    error = vm.errorFiats[fiat],
+                    removable = vm.selectedFiats.size > 1,
+                    onChange = { vm.setInput(InputSource.Fiat(fiat), it) },
+                    onRemove = { vm.removeFiat(fiat) },
                 )
             }
 
@@ -195,16 +130,9 @@ fun ConverterScreen(core: PriceCore) {
 
     if (pickerOpen) {
         CurrencyPickerSheet(
-            allFiats = allFiats,
-            selected = selectedFiats.toList(),
-            onToggle = { fiat ->
-                if (selectedFiats.contains(fiat)) {
-                    // Refuse to remove the last one — the headline & math need a primary.
-                    if (selectedFiats.size > 1) selectedFiats.remove(fiat)
-                } else {
-                    selectedFiats.add(fiat)
-                }
-            },
+            allFiats = vm.supportedFiats,
+            selected = vm.selectedFiats.toList(),
+            onToggle = vm::toggleFiat,
             onDismiss = { pickerOpen = false },
         )
     }
@@ -441,7 +369,7 @@ private fun CurrencyRow(fiat: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /** "from 1 source" vs "median across N sources" — the word "median" only
- * carries weight when there's actually more than one number to combine. */
+ * carries weight when there's more than one number to combine. */
 private fun sourcesCaption(n: Int): String = when (n) {
     1 -> "from 1 source"
     else -> "median across $n sources"
@@ -462,33 +390,4 @@ private fun formatDecimal(value: String, maxDecimals: Int): String {
     val sign = if (negative) "-" else ""
     val hasMeaningfulFraction = capped.any { it != '0' }
     return if (hasMeaningfulFraction) "$sign$intPart.$capped" else "$sign$intPart"
-}
-
-/**
- * Resolve the canonical sats value from whichever field the user last edited.
- * Returns null when the input can't be interpreted (blank field, awaited price,
- * out-of-range, etc.) — callers project blank into dependent fields in that case.
- */
-private fun computeSats(
-    core: PriceCore,
-    source: InputSource,
-    raw: String,
-    snapshots: Map<String, PriceSnapshot>,
-): ULong? {
-    if (raw.isBlank()) return null
-    return runCatching {
-        when (source) {
-            InputSource.Sats -> raw.toULongOrNull()
-            InputSource.Btc -> core.convertBtcToSats(raw)
-            is InputSource.Fiat -> {
-                val price = snapshots[source.code]?.price ?: return null
-                core.convertFiatToSats(raw, price)
-            }
-        }
-    }.getOrNull()
-}
-
-private fun priceFor(core: PriceCore, sats: ULong?, price: String?): String {
-    if (sats == null || price.isNullOrBlank()) return ""
-    return runCatching { core.convertSatsToFiat(sats, price) }.getOrDefault("")
 }

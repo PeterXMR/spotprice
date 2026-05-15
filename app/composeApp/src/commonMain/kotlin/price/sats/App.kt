@@ -4,8 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 
 @Composable
-fun App(core: PriceCore) {
+fun App() {
     MaterialTheme {
-        ConverterScreen(core)
+        ConverterScreen()
     }
 }
