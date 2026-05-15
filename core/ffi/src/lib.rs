@@ -29,19 +29,21 @@ pub struct PriceSnapshot {
     pub dispersion: String,
 }
 
+// Tuple variants (positional) — avoids generating Kotlin `val message: String`
+// fields that collide with `Throwable.message: String?` on the sealed-class side.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum FfiError {
-    #[error("insufficient sources reachable (got {got}, need 3+)")]
-    InsufficientSources { got: u32 },
+    #[error("insufficient sources reachable (got {0}, need 3+)")]
+    InsufficientSources(u32),
 
-    #[error("network error: {message}")]
-    Network { message: String },
+    #[error("network error: {0}")]
+    Network(String),
 
-    #[error("invalid input: {message}")]
-    InvalidInput { message: String },
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 
-    #[error("conversion error: {message}")]
-    Conversion { message: String },
+    #[error("conversion error: {0}")]
+    Conversion(String),
 }
 
 #[derive(uniffi::Object)]
@@ -93,16 +95,14 @@ impl SatsPriceCore {
             .unwrap_or(0);
 
         let aggregated = aggregate(quotes, &AggregateOpts::default(), now)
-            .ok_or(FfiError::InsufficientSources { got })?;
+            .ok_or(FfiError::InsufficientSources(got))?;
         self.cache.put(&fiat, aggregated.clone()).await;
         Ok(snapshot_from_aggregated(aggregated, false))
     }
 
     pub fn convert_sats_to_fiat(&self, sats: u64, price: String) -> Result<String, FfiError> {
         let price = parse_decimal(&price)?;
-        let fiat = sats_to_fiat(sats, price).map_err(|e| FfiError::Conversion {
-            message: e.to_string(),
-        })?;
+        let fiat = sats_to_fiat(sats, price).map_err(|e| FfiError::Conversion(e.to_string()))?;
         Ok(format!("{:.2}", fiat))
     }
 
@@ -113,9 +113,7 @@ impl SatsPriceCore {
     ) -> Result<u64, FfiError> {
         let fiat_amount = parse_decimal(&fiat_amount)?;
         let price = parse_decimal(&price)?;
-        fiat_to_sats(fiat_amount, price).map_err(|e| FfiError::Conversion {
-            message: e.to_string(),
-        })
+        fiat_to_sats(fiat_amount, price).map_err(|e| FfiError::Conversion(e.to_string()))
     }
 
     /// A curated list of fiats supported by most exchanges. The aggregator
@@ -130,9 +128,7 @@ impl SatsPriceCore {
 }
 
 fn parse_decimal(s: &str) -> Result<Decimal, FfiError> {
-    Decimal::from_str(s).map_err(|e| FfiError::InvalidInput {
-        message: format!("could not parse '{s}': {e}"),
-    })
+    Decimal::from_str(s).map_err(|e| FfiError::InvalidInput(format!("could not parse '{s}': {e}")))
 }
 
 fn snapshot_from_aggregated(agg: AggregatedPrice, stale: bool) -> PriceSnapshot {
@@ -197,7 +193,7 @@ mod tests {
         let err = core
             .convert_sats_to_fiat(1, "banana".into())
             .expect_err("should fail");
-        assert!(matches!(err, FfiError::InvalidInput { .. }));
+        assert!(matches!(err, FfiError::InvalidInput(_)));
     }
 
     #[test]

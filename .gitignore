@@ -57,3 +57,6 @@ GoogleService-Info.plist
 # Logs and profiles
 *.log
 hs_err_pid*
+
+# Kotlin daemon ephemera
+.kotlin/

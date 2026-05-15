@@ -1,14 +1,20 @@
-# SatsPrice — Implementation Plan
+# SatsPrice — Android Implementation Plan (Phase 1)
 
+> **Scope split:** this plan covers Android v1. iOS work is parked in
+> [PLAN-ios.md](PLAN-ios.md) and will be picked up after Android ships and the
+> full Xcode app is installed.
+>
 > **Engineer onboarding:** zero codebase context assumed. Each task is bite-sized
 > (2–5 min). Follow in order. Run the test commands; expected output is shown.
 
 **Goal:** A client-only Bitcoin price ticker and Sats ↔ BTC ↔ fiat converter for
-Android and iOS. No backend. All logic on-device.
+Android. No backend. All logic on-device. iOS to follow in Phase 2.
 
 **Architecture:** Rust workspace under `core/` produces a single shared library
 exposed via UniFFI to a Kotlin Multiplatform + Compose Multiplatform app under
 `app/`. Pattern mirrors Bitkey (Block) and Mozilla Application Services.
+KMP is set up with only `androidTarget()` for now; iOS targets are added in
+PLAN-ios.md without rewriting any of this work.
 
 **Tech stack (verified May 2026):**
 - Rust 1.85, UniFFI 0.31, reqwest 0.12 (rustls), tokio, sled, moka, rust_decimal
@@ -192,43 +198,49 @@ impl SatsPriceCore {
 ## Phase 6 — Android cross-compile
 
 **Steps:**
-- [ ] **6.1** Install Android NDK r28+ via Android Studio SDK Manager; set `ANDROID_NDK_HOME`
-- [ ] **6.2** `just build-android` — expect `.so` files in `app/android/src/main/jniLibs/<abi>/`
-- [ ] **6.3** `just verify-android-alignment` — `LOAD` alignment must show `0x4000`
-- [ ] **6.4** Strip-check: `du -sh app/android/src/main/jniLibs/arm64-v8a/*.so` < 10 MB
-- [ ] **6.5** Commit `.jniLibs.gitignore` (don't commit binaries — Gradle rebuilds them)
+- [x] **6.1** NDK detected at `~/Library/Android/sdk/ndk/25.2.9519653` (r25, fine for dev). NDK r28+ deferred to Phase 13 polish for Play Store uploads.
+- [x] **6.2** `cargo ndk -t arm64-v8a build -p satsprice-ffi --release` → 2.5 MB `libsatsprice_ffi.so` in `app/android/src/main/jniLibs/arm64-v8a/`
+- [x] **6b** Generate UniFFI Kotlin bindings → `app/composeApp/src/.../generated/`
+- [ ] **6c** Repeat for the remaining 3 ABIs: `cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -t x86 build -p satsprice-ffi --release`
+- [ ] **6.4** Strip-check: `du -sh app/android/src/main/jniLibs/*/*.so` — all < 10 MB
+- [ ] **6.5** Verify alignment check deferred to Phase 13 (current NDK r25 won't pass 16 KB)
 
-## Phase 7 — KMP + Compose Multiplatform project scaffold
+## Phase 7 — KMP + Compose Multiplatform project scaffold (Android target only)
 
 **Files (composeApp module):**
 - Create: `app/settings.gradle.kts`, `app/build.gradle.kts`
+- Create: `app/gradle.properties`
 - Create: `app/gradle/libs.versions.toml` (single source of truth for versions)
 - Create: `app/composeApp/build.gradle.kts`
-- Create: `app/composeApp/src/commonMain/kotlin/sats/price/App.kt`
-- Create: `app/composeApp/src/androidMain/kotlin/sats/price/MainActivity.kt`
-- Create: `app/composeApp/src/iosMain/kotlin/sats/price/MainViewController.kt`
-- Create: `app/iosApp/iosApp/iOSApp.swift`, `app/iosApp/iosApp.xcodeproj`
+- Create: `app/composeApp/src/commonMain/kotlin/price/sats/App.kt`
+- Create: `app/composeApp/src/androidMain/kotlin/price/sats/MainActivity.kt`
+- Create: `app/composeApp/src/androidMain/kotlin/price/sats/SatsPriceApplication.kt`
+- Create: `app/composeApp/src/androidMain/AndroidManifest.xml`
 
 **Steps:**
-- [ ] **7.1** Write `libs.versions.toml` with all pinned versions
-- [ ] **7.2** Write root `build.gradle.kts` declaring plugins (apply false)
-- [ ] **7.3** Write `composeApp/build.gradle.kts` with `kotlin {}` block: `androidTarget`, `iosArm64`, `iosSimulatorArm64`, common deps
-- [ ] **7.4** Write minimal `App.kt` Composable in `commonMain`
-- [ ] **7.5** Write `MainActivity.kt` setting `setContent { App() }`
-- [ ] **7.6** Write `MainViewController.kt` returning `ComposeUIViewController { App() }`
-- [ ] **7.7** `./gradlew :composeApp:assembleDebug` — expect Android APK to build
-- [ ] **7.8** Commit: `feat(app): KMP+CMP scaffold with shared App() Composable`
+- [ ] **7.1** Write `libs.versions.toml` with pinned versions (Kotlin 2.2.20, CMP 1.10.3, AGP 9.0.0, etc.)
+- [ ] **7.2** Write `settings.gradle.kts` declaring `:composeApp` and repositories
+- [ ] **7.3** Write root `build.gradle.kts` declaring plugins (apply false)
+- [ ] **7.4** Write `composeApp/build.gradle.kts` with `kotlin {}` block: only `androidTarget()`, common + android deps. JNA dep for UniFFI runtime.
+- [ ] **7.5** Move the generated UniFFI Kotlin from `commonMain` to `androidMain` (JNA is JVM-only)
+- [ ] **7.6** Write minimal `App.kt` Composable in `commonMain`
+- [ ] **7.7** Write `SatsPriceApplication.kt` extending `Application`, `System.loadLibrary("satsprice_ffi")`
+- [ ] **7.8** Write `MainActivity.kt` setting `setContent { App() }`
+- [ ] **7.9** Write `AndroidManifest.xml` declaring INTERNET permission + Application + Activity
+- [ ] **7.10** Run `gradle :composeApp:tasks` to validate config parses
+- [ ] **7.11** Commit: `feat(app): KMP+CMP scaffold (Android target) with Rust core load`
 
-## Phase 8 — UniFFI Kotlin bindings + first "hello from Rust"
+## Phase 8 — First "hello from Rust" smoke test
 
 **Steps:**
-- [ ] **8.1** Add `:rust` Gradle task in `composeApp/build.gradle.kts` running `cargo build` + bindgen
-- [ ] **8.2** Add `androidMain` source set entry for generated Kotlin
-- [ ] **8.3** Add Application class calling `System.loadLibrary("satsprice_ffi")` + `rustls_platform_verifier::android::init_hosted`
-- [ ] **8.4** In `App.kt`, call `SatsPriceCore.fetchPrice("usd")` from a `LaunchedEffect` and render result in `Text()`
-- [ ] **8.5** Install on emulator: `just run-android`
-- [ ] **8.6** Verify a real BTC price renders on screen
-- [ ] **8.7** Commit: `feat(app): first end-to-end Compose → Rust → Coingecko call`
+- [ ] **8.1** Add a Gradle task `:composeApp:cargoBuild` running `cargo ndk` from the workspace (used as build-pre-step)
+- [ ] **8.2** Add `:composeApp:generateUniffiKotlin` task running `uniffi-bindgen generate`
+- [ ] **8.3** Wire `preBuild.dependsOn(cargoBuild, generateUniffiKotlin)` so a clean `assembleDebug` rebuilds everything
+- [ ] **8.4** In `App.kt`, instantiate `SatsPriceCore()` (synchronous constructor) and render `core.supportedFiats().joinToString()` in `Text()` — this proves the FFI works without needing network
+- [ ] **8.5** Build APK: `gradle :composeApp:assembleDebug`
+- [ ] **8.6** Install on emulator: `adb install` the produced APK; verify "usd, eur, gbp…" appears on screen
+- [ ] **8.7** Then upgrade `App.kt` to call `core.fetchPrice("usd")` from a `LaunchedEffect` and render the price
+- [ ] **8.8** Commit: `feat(app): end-to-end Compose → Rust → exchange APIs working`
 
 ## Phase 9 — Compose UI screens (functional clean-room equivalents)
 
@@ -264,26 +276,20 @@ impl SatsPriceCore {
 - [ ] **11.4** Capture logcat with `tracing` output from Rust visible
 - [ ] **11.5** Commit any fixes; tag `v0.1.0-android`
 
-## Phase 12 — iOS targets (requires full Xcode app installed)
+## Phase 12 — iOS targets
 
-- [ ] **12.1** Install Xcode 16+ from Mac App Store; accept license; `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
-- [ ] **12.2** `cargo install cargo-swift`
-- [ ] **12.3** `just build-ios` — produces `SatsPriceCore.xcframework` + SwiftPM package
-- [ ] **12.4** Create `iosApp/` Xcode project; add `SatsPriceCore` as local SwiftPM
-- [ ] **12.5** Configure Run Script build phase: `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`
-- [ ] **12.6** Implement `iOSApp.swift` hosting `MainViewController`
-- [ ] **12.7** Build + run on iOS simulator
-- [ ] **12.8** Add `PrivacyInfo.xcprivacy` (no tracking domains; declare reason codes for any time/UserDefaults API used)
-- [ ] **12.9** Commit: `feat(app): iOS xcframework + SwiftUI host + privacy manifest`
+**Deferred to Phase 2 — see [PLAN-ios.md](PLAN-ios.md).**
 
-## Phase 13 — Polish & release prep
+## Phase 13 — Android polish & release prep
 
-- [ ] **13.1** Add Proguard/R8 rules for UniFFI + rustls-platform-verifier (from their READMEs)
-- [ ] **13.2** Reproducible build config: pin all toolchain versions; strip timestamps
-- [ ] **13.3** Add F-Droid metadata in `fastlane/metadata/android/`
-- [ ] **13.4** Add Zap Store metadata (`.well-known/zapstore.yaml`)
-- [ ] **13.5** Add GitHub Actions: lint, test, build-android, (build-ios on macos-latest)
-- [ ] **13.6** Add `CHANGELOG.md`, version bump to `0.1.0`, tag release
+- [ ] **13.1** Add Proguard/R8 rules for UniFFI + JNA (from their READMEs)
+- [ ] **13.2** Upgrade Android NDK to r28+ via SDK Manager; rebuild and verify 16 KB page alignment with `llvm-readelf -l libsatsprice_ffi.so | grep LOAD` → `0x4000`
+- [ ] **13.3** Wire `rustls-platform-verifier` Android init: from `SatsPriceApplication.onCreate()`, call the JNI bridge to `init_hosted(JNIEnv, Context)` so HTTPS works against device CAs
+- [ ] **13.4** Build release APK with R8 minification; verify shrunk size
+- [ ] **13.5** Add F-Droid metadata in `fastlane/metadata/android/`
+- [ ] **13.6** Add Zap Store metadata (`.well-known/zapstore.yaml`)
+- [ ] **13.7** Add GitHub Actions: cargo test, gradle assembleRelease, lint
+- [ ] **13.8** Add `CHANGELOG.md`, version bump to `0.1.0`, tag `v0.1.0-android`
 
 ---
 
@@ -294,8 +300,9 @@ impl SatsPriceCore {
 - **No placeholders:** Each step has a concrete deliverable. No "TBD" or "add validation here".
 - **Bite-sized:** Steps are 2-5 minutes; commits frequent (one per sub-phase).
 
-## Out of scope (intentionally)
+## Out of scope (this plan)
 
+- **iOS** — entire scope split into [PLAN-ios.md](PLAN-ios.md), Phase 2
 - Multi-currency conversion chains (only BTC ↔ fiat for now)
 - Charts / historical data (deferred to v0.2)
 - Lightning address / zap calculator (placeholder module reserved in Phase 13)
