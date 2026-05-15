@@ -24,9 +24,11 @@ uniffi = { version = "0.31", features = ["tokio"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
 
 # HTTP — rustls-only, no native OpenSSL.
-# Tests use plain http:// so manual-roots is enough; production swaps in
-# rustls-platform-verifier via `use_preconfigured_tls` in the ffi crate.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots", "json"] }
+# `rustls-tls-webpki-roots` bundles a known set of root CAs (~150 KB binary cost)
+# so HTTPS works without any Kotlin-side init_hosted JNI plumbing. The
+# rustls-platform-verifier path is preserved behind the `mobile-tls` feature
+# of `satsprice-ffi` for the production polish phase.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json"] }
 rustls = "0.23"
 rustls-platform-verifier = "0.7"
 

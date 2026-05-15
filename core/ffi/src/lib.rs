@@ -9,7 +9,7 @@
 use rust_decimal::Decimal;
 use satsprice_aggregator::{aggregate, AggregateOpts, AggregatedPrice, RawQuote};
 use satsprice_cache::PriceCache;
-use satsprice_convert::{fiat_to_sats, sats_to_fiat};
+use satsprice_convert::{btc_to_sats, fiat_to_sats, sats_to_btc, sats_to_fiat};
 use satsprice_price_sources::{all_sources, PriceSource};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -94,7 +94,14 @@ impl SatsPriceCore {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        let aggregated = aggregate(quotes, &AggregateOpts::default(), now)
+        // Relax min_sources to 1 at the consumer layer so exotic fiats
+        // (e.g. PYG, ARS) that only Coingecko supports still publish a price.
+        // The aggregator crate keeps its strict default for non-mobile consumers.
+        let opts = AggregateOpts {
+            min_sources: 1,
+            ..AggregateOpts::default()
+        };
+        let aggregated = aggregate(quotes, &opts, now)
             .ok_or(FfiError::InsufficientSources(got))?;
         self.cache.put(&fiat, aggregated.clone()).await;
         Ok(snapshot_from_aggregated(aggregated, false))
@@ -116,14 +123,32 @@ impl SatsPriceCore {
         fiat_to_sats(fiat_amount, price).map_err(|e| FfiError::Conversion(e.to_string()))
     }
 
-    /// A curated list of fiats supported by most exchanges. The aggregator
-    /// itself can handle any string CoinGecko accepts — this is just the
-    /// recommended dropdown set.
+    /// BTC decimal string for the given sat count, 8 fractional digits.
+    pub fn convert_sats_to_btc(&self, sats: u64) -> String {
+        format!("{:.8}", sats_to_btc(sats))
+    }
+
+    /// Exact sat count for a BTC decimal string. Rejects negative / non-numeric input.
+    pub fn convert_btc_to_sats(&self, btc: String) -> Result<u64, FfiError> {
+        let btc = parse_decimal(&btc)?;
+        btc_to_sats(btc).map_err(|e| FfiError::Conversion(e.to_string()))
+    }
+
+    /// Alphabetically-sorted set of common fiats. Coverage by source:
+    /// * Major fiats (~7): all 4 sources support → real median + dispersion guard
+    /// * Mid-tier (~20): Coingecko + Coinbase → 2-source median
+    /// * Long tail (PYG, UYU, KES, …): Coingecko only → single-source feed
     pub fn supported_fiats(&self) -> Vec<String> {
-        ["usd", "eur", "gbp", "jpy", "chf", "aud", "cad", "cny", "inr", "krw"]
-            .iter()
-            .map(|s| (*s).to_string())
-            .collect()
+        [
+            "aed", "ars", "aud", "brl", "cad", "chf", "clp", "cny", "cop", "czk",
+            "dkk", "egp", "eur", "gbp", "hkd", "huf", "idr", "ils", "inr", "jpy",
+            "kes", "krw", "mxn", "myr", "ngn", "nok", "nzd", "pen", "php", "pln",
+            "pyg", "ron", "rub", "sar", "sek", "sgd", "thb", "try", "twd", "uah",
+            "usd", "uyu", "vnd", "zar",
+        ]
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
     }
 }
 
@@ -157,6 +182,9 @@ fn build_http_client() -> reqwest::Client {
 
 #[cfg(not(feature = "mobile-tls"))]
 fn build_http_client() -> reqwest::Client {
+    // rustls 0.23 requires a default crypto provider before any TLS handshake.
+    // install_default is idempotent (subsequent calls return Err which we ignore).
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     reqwest::Client::builder()
         .user_agent("satsprice/0.1.0")
         .build()

@@ -643,7 +643,11 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_satsprice_ffi_checksum_method_satspricecore_convert_btc_to_sats(
+    ): Short
     external fun uniffi_satsprice_ffi_checksum_method_satspricecore_convert_fiat_to_sats(
+    ): Short
+    external fun uniffi_satsprice_ffi_checksum_method_satspricecore_convert_sats_to_btc(
     ): Short
     external fun uniffi_satsprice_ffi_checksum_method_satspricecore_convert_sats_to_fiat(
     ): Short
@@ -677,8 +681,12 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_satsprice_ffi_fn_constructor_satspricecore_new(uniffi_out_err: UniffiRustCallStatus, 
     ): Long
+    external fun uniffi_satsprice_ffi_fn_method_satspricecore_convert_btc_to_sats(`ptr`: Long,`btc`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
     external fun uniffi_satsprice_ffi_fn_method_satspricecore_convert_fiat_to_sats(`ptr`: Long,`fiatAmount`: RustBuffer.ByValue,`price`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
+    external fun uniffi_satsprice_ffi_fn_method_satspricecore_convert_sats_to_btc(`ptr`: Long,`sats`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_satsprice_ffi_fn_method_satspricecore_convert_sats_to_fiat(`ptr`: Long,`sats`: Long,`price`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_satsprice_ffi_fn_method_satspricecore_fetch_price(`ptr`: Long,`fiat`: RustBuffer.ByValue,
@@ -804,7 +812,13 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_satsprice_ffi_checksum_method_satspricecore_convert_btc_to_sats() != 14881.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_satsprice_ffi_checksum_method_satspricecore_convert_fiat_to_sats() != 59198.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_satsprice_ffi_checksum_method_satspricecore_convert_sats_to_btc() != 54571.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_satsprice_ffi_checksum_method_satspricecore_convert_sats_to_fiat() != 24015.toShort()) {
@@ -1240,7 +1254,17 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
 
 public interface SatsPriceCoreInterface {
     
+    /**
+     * Exact sat count for a BTC decimal string. Rejects negative / non-numeric input.
+     */
+    fun `convertBtcToSats`(`btc`: kotlin.String): kotlin.ULong
+    
     fun `convertFiatToSats`(`fiatAmount`: kotlin.String, `price`: kotlin.String): kotlin.ULong
+    
+    /**
+     * BTC decimal string for the given sat count, 8 fractional digits.
+     */
+    fun `convertSatsToBtc`(`sats`: kotlin.ULong): kotlin.String
     
     fun `convertSatsToFiat`(`sats`: kotlin.ULong, `price`: kotlin.String): kotlin.String
     
@@ -1368,6 +1392,23 @@ open class SatsPriceCore: Disposable, AutoCloseable, SatsPriceCoreInterface
     }
 
     
+    /**
+     * Exact sat count for a BTC decimal string. Rejects negative / non-numeric input.
+     */
+    @Throws(FfiException::class)override fun `convertBtcToSats`(`btc`: kotlin.String): kotlin.ULong {
+            return FfiConverterULong.lift(
+    callWithHandle {
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_satsprice_ffi_fn_method_satspricecore_convert_btc_to_sats(
+        it,
+        FfiConverterString.lower(`btc`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(FfiException::class)override fun `convertFiatToSats`(`fiatAmount`: kotlin.String, `price`: kotlin.String): kotlin.ULong {
             return FfiConverterULong.lift(
     callWithHandle {
@@ -1375,6 +1416,22 @@ open class SatsPriceCore: Disposable, AutoCloseable, SatsPriceCoreInterface
     UniffiLib.uniffi_satsprice_ffi_fn_method_satspricecore_convert_fiat_to_sats(
         it,
         FfiConverterString.lower(`fiatAmount`),FfiConverterString.lower(`price`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * BTC decimal string for the given sat count, 8 fractional digits.
+     */override fun `convertSatsToBtc`(`sats`: kotlin.ULong): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_satsprice_ffi_fn_method_satspricecore_convert_sats_to_btc(
+        it,
+        FfiConverterULong.lower(`sats`),_status)
 }
     }
     )

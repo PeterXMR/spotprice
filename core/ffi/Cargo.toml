@@ -26,6 +26,7 @@ rust_decimal = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 async-trait = { workspace = true }
+rustls = { workspace = true }
 
 [dev-dependencies]
 rust_decimal_macros = "1"
@@ -33,12 +34,10 @@ tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
 
 [features]
 default = []
-# Enabled when bundling for mobile so reqwest links rustls-platform-verifier.
-mobile-tls = ["dep:rustls", "dep:rustls-platform-verifier"]
-
-[dependencies.rustls]
-workspace = true
-optional = true
+# Enabled when bundling for mobile so the client uses rustls-platform-verifier
+# (OS trust store via JNI on Android, SecTrust on iOS) instead of the bundled
+# webpki-roots used during development.
+mobile-tls = ["dep:rustls-platform-verifier"]
 
 [dependencies.rustls-platform-verifier]
 workspace = true
