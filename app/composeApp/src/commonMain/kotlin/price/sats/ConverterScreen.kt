@@ -83,7 +83,7 @@ fun ConverterScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SatsPrice") },
+                title = { Text("SpotPrice") },
                 navigationIcon = {
                     IconButton(onClick = onMenuClick) {
                         Icon(Icons.Filled.Menu, contentDescription = "Open menu")

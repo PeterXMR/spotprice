@@ -1,4 +1,4 @@
-//! SatsPrice — unit conversion between satoshis, BTC, and arbitrary fiat.
+//! SpotPrice — unit conversion between satoshis, BTC, and arbitrary fiat.
 //!
 //! All math is performed with [`rust_decimal::Decimal`] to avoid IEEE-754
 //! rounding surprises that would otherwise corrupt sat counts displayed

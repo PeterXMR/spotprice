@@ -1,1 +1,1 @@
-SatsPrice
+SpotPrice

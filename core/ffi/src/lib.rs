@@ -172,7 +172,7 @@ fn build_http_client() -> reqwest::Client {
     let tls = rustls::ClientConfig::with_platform_verifier()
         .expect("platform verifier should initialize");
     reqwest::Client::builder()
-        .user_agent("satsprice/0.1.0")
+        .user_agent("spotprice/0.1.0")
         .use_preconfigured_tls(tls)
         .build()
         .expect("reqwest client")
@@ -184,7 +184,7 @@ fn build_http_client() -> reqwest::Client {
     // install_default is idempotent (subsequent calls return Err which we ignore).
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     reqwest::Client::builder()
-        .user_agent("satsprice/0.1.0")
+        .user_agent("spotprice/0.1.0")
         .build()
         .expect("reqwest client")
 }

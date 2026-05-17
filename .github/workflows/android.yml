@@ -79,7 +79,7 @@ jobs:
       # --remap-path-prefix scrubs runner-specific absolute paths ($HOME and
       # $GITHUB_WORKSPACE) out of the compiled .so files, replacing them with
       # stable placeholders. Without this, debuginfo and panic strings embed
-      # paths like /home/runner/work/satsprice/satsprice/... and
+      # paths like /home/runner/work/spotprice/spotprice/... and
       # /home/runner/.cargo/registry/... that differ between machines and
       # break bit-for-bit reproducibility. Passed via RUSTFLAGS (these are
       # rustc flags; cargo's `--` only forwards args to the built binary,
@@ -100,7 +100,7 @@ jobs:
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: SatsPrice-debug-${{ github.sha }}
+          name: SpotPrice-debug-${{ github.sha }}
           path: app/composeApp/build/outputs/apk/debug/composeApp-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -113,13 +113,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           cp app/composeApp/build/outputs/apk/debug/composeApp-debug.apk \
-             SatsPrice-${{ github.ref_name }}.apk
+             SpotPrice-${{ github.ref_name }}.apk
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
-          files: SatsPrice-${{ github.ref_name }}.apk
+          files: SpotPrice-${{ github.ref_name }}.apk
           # Anything with a hyphen after the version (v1.2.3-...) is a
           # prerelease per semver. Plain v1.2.3 is a real release.
           prerelease: ${{ contains(github.ref_name, '-') }}

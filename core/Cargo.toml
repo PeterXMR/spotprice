@@ -14,7 +14,7 @@ resolver = "2"
 edition = "2021"
 rust-version = "1.85"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/USER/satsprice"
+repository = "https://github.com/PeterXMR/spotprice"
 
 [workspace.dependencies]
 # FFI

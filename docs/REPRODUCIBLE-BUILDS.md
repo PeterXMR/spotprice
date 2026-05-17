@@ -1,8 +1,8 @@
 # Reproducible builds
 
-## Why this matters for SatsPrice
+## Why this matters for SpotPrice
 
-SatsPrice is positioned as a privacy-first, client-only Bitcoin tool: no
+SpotPrice is positioned as a privacy-first, client-only Bitcoin tool: no
 backend, no analytics, no third-party SDKs. That positioning is only
 meaningful if a user (or an F-Droid reviewer, or anyone else) can
 independently confirm that the APK they install was actually built from the
@@ -60,8 +60,8 @@ Once a tag is published, to confirm the release asset matches the source:
 
 ```sh
 # 1. Clone at the exact tag
-git clone https://github.com/PeterXMR/satsprice
-cd satsprice
+git clone https://github.com/PeterXMR/spotprice
+cd spotprice
 git checkout v0.X.Y
 
 # 2. Reproduce the CI build locally. Either via `act` (runs the workflow
@@ -73,13 +73,13 @@ act -j build
 #    RUSTFLAGS export are the load-bearing ones).
 
 # 3. Download the published APK
-curl -LO https://github.com/PeterXMR/satsprice/releases/download/v0.X.Y/SatsPrice-v0.X.Y.apk
+curl -LO https://github.com/PeterXMR/spotprice/releases/download/v0.X.Y/SpotPrice-v0.X.Y.apk
 
 # 4. Strip signing blocks from both APKs (the signing block legitimately
 #    differs between builds; everything else should match) and diff.
 #    apksigner ships with the Android build-tools.
-apksigner verify --print-certs SatsPrice-v0.X.Y.apk
-unzip -p SatsPrice-v0.X.Y.apk > /tmp/published.zip
+apksigner verify --print-certs SpotPrice-v0.X.Y.apk
+unzip -p SpotPrice-v0.X.Y.apk > /tmp/published.zip
 unzip -p app/composeApp/build/outputs/apk/release/composeApp-release.apk > /tmp/local.zip
 diff <(unzip -l /tmp/published.zip) <(unzip -l /tmp/local.zip)
 ```

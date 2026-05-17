@@ -1,4 +1,4 @@
-# SatsPrice — Android Implementation Plan (Phase 1)
+# SpotPrice — Android Implementation Plan (Phase 1)
 
 > **Scope split:** this plan covers Android v1. iOS work is parked in
 > [PLAN-ios.md](PLAN-ios.md) and will be picked up after Android ships and the
@@ -214,7 +214,7 @@ impl SatsPriceCore {
 - Create: `app/composeApp/build.gradle.kts`
 - Create: `app/composeApp/src/commonMain/kotlin/price/sats/App.kt`
 - Create: `app/composeApp/src/androidMain/kotlin/price/sats/MainActivity.kt`
-- Create: `app/composeApp/src/androidMain/kotlin/price/sats/SatsPriceApplication.kt`
+- Create: `app/composeApp/src/androidMain/kotlin/price/sats/SpotPriceApplication.kt`
 - Create: `app/composeApp/src/androidMain/AndroidManifest.xml`
 
 **Steps:**
@@ -224,7 +224,7 @@ impl SatsPriceCore {
 - [ ] **7.4** Write `composeApp/build.gradle.kts` with `kotlin {}` block: only `androidTarget()`, common + android deps. JNA dep for UniFFI runtime.
 - [ ] **7.5** Move the generated UniFFI Kotlin from `commonMain` to `androidMain` (JNA is JVM-only)
 - [ ] **7.6** Write minimal `App.kt` Composable in `commonMain`
-- [ ] **7.7** Write `SatsPriceApplication.kt` extending `Application`, `System.loadLibrary("satsprice_ffi")`
+- [ ] **7.7** Write `SpotPriceApplication.kt` extending `Application`, `System.loadLibrary("satsprice_ffi")`
 - [ ] **7.8** Write `MainActivity.kt` setting `setContent { App() }`
 - [ ] **7.9** Write `AndroidManifest.xml` declaring INTERNET permission + Application + Activity
 - [ ] **7.10** Run `gradle :composeApp:tasks` to validate config parses
@@ -284,7 +284,7 @@ impl SatsPriceCore {
 
 - [ ] **13.1** Add Proguard/R8 rules for UniFFI + JNA (from their READMEs)
 - [ ] **13.2** Upgrade Android NDK to r28+ via SDK Manager; rebuild and verify 16 KB page alignment with `llvm-readelf -l libsatsprice_ffi.so | grep LOAD` → `0x4000`
-- [ ] **13.3** Wire `rustls-platform-verifier` Android init: from `SatsPriceApplication.onCreate()`, call the JNI bridge to `init_hosted(JNIEnv, Context)` so HTTPS works against device CAs
+- [ ] **13.3** Wire `rustls-platform-verifier` Android init: from `SpotPriceApplication.onCreate()`, call the JNI bridge to `init_hosted(JNIEnv, Context)` so HTTPS works against device CAs
 - [ ] **13.4** Build release APK with R8 minification; verify shrunk size
 - [ ] **13.5** Add F-Droid metadata in `fastlane/metadata/android/`
 - [ ] **13.6** Add Zap Store metadata (`.well-known/zapstore.yaml`)

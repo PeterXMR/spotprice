@@ -51,7 +51,7 @@ fun AboutScreen(onMenuClick: () -> Unit) {
         ) {
             Spacer(Modifier.height(8.dp))
 
-            InfoCard(title = "SatsPrice") {
+            InfoCard(title = "SpotPrice") {
                 LabeledRow("Version", "0.1.0")
                 LabeledRow("License", "MIT")
             }

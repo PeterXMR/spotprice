@@ -1,4 +1,4 @@
-# SatsPrice (Rust core + Kotlin Multiplatform UI)
+# SpotPrice (Rust core + Kotlin Multiplatform UI)
 
 A client-only sats price ticker and Sats ↔ fiat converter for Android and iOS.
 No backend — all logic runs on the device.
@@ -48,15 +48,15 @@ Three install paths, all directly from this repo's GitHub Releases — no
 intermediate store, no account, no telemetry:
 
 - **[Obtainium](https://obtainium.imranr.dev/)** (auto-updating sideload):
-  add the app by pasting `https://github.com/PeterXMR/satsprice` into
+  add the app by pasting `https://github.com/PeterXMR/spotprice` into
   Obtainium's "Add app" field. It will track new releases as they're tagged
   and offer updates.
 - **F-Droid**: planned. The repo ships [Fastlane
   metadata](fastlane/metadata/android/en-US/) and is set up for
   [reproducible builds](docs/REPRODUCIBLE-BUILDS.md); the inclusion request
   will be filed once a signed release lands.
-- **Manual sideload**: download the latest `SatsPrice-vX.Y.Z.apk` from
-  [Releases](https://github.com/PeterXMR/satsprice/releases) and install it
+- **Manual sideload**: download the latest `SpotPrice-vX.Y.Z.apk` from
+  [Releases](https://github.com/PeterXMR/spotprice/releases) and install it
   with your file manager (you may need to enable "Install unknown apps" for
   the source app).
 

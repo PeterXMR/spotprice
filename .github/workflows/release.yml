@@ -91,16 +91,16 @@ jobs:
       - name: Rename artifacts for release upload
         run: |
           cp app/composeApp/build/outputs/apk/release/composeApp-release.apk \
-             SatsPrice-${{ github.ref_name }}.apk
+             SpotPrice-${{ github.ref_name }}.apk
           cp app/composeApp/build/outputs/bundle/release/composeApp-release.aab \
-             SatsPrice-${{ github.ref_name }}.aab
+             SpotPrice-${{ github.ref_name }}.aab
 
       - name: Attach signed artifacts to the GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: |
-            SatsPrice-${{ github.ref_name }}.apk
-            SatsPrice-${{ github.ref_name }}.aab
+            SpotPrice-${{ github.ref_name }}.apk
+            SpotPrice-${{ github.ref_name }}.aab
           # Same prerelease semantics as android.yml: a hyphen after the
           # version number → prerelease, plain semver → latest.
           prerelease: ${{ contains(github.ref_name, '-') }}

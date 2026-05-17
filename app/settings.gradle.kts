@@ -23,5 +23,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "satsprice"
+rootProject.name = "spotprice"
 include(":composeApp")

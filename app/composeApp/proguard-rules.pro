@@ -1,4 +1,4 @@
-# R8 / ProGuard keep-rules for the SatsPrice Android release build.
+# R8 / ProGuard keep-rules for the SpotPrice Android release build.
 #
 # Why this file exists
 # --------------------

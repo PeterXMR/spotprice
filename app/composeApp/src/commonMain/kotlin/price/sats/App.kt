@@ -58,7 +58,7 @@ fun App() {
                 ModalDrawerSheet(modifier = Modifier.fillMaxHeight()) {
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "SatsPrice",
+                        text = "SpotPrice",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
                     )

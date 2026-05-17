@@ -1,4 +1,4 @@
-# cargo-deny configuration for satsprice.
+# cargo-deny configuration for spotprice.
 #
 # Why we care: this app ships under GPL-3.0-or-later. Every Rust dep we link
 # into the shipped .so is redistributed, so a transitive crate under an

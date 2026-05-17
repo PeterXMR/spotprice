@@ -1,4 +1,4 @@
-# SatsPrice — iOS Implementation Plan (Phase 2)
+# SpotPrice — iOS Implementation Plan (Phase 2)
 
 > **Prerequisite:** [PLAN.md](PLAN.md) Phase 1 (Android) is complete and shipping
 > on Google Play / F-Droid. This plan adds iOS as a second target consuming the
@@ -9,7 +9,7 @@
 > belong in the Android critical path. Tracking them separately keeps Phase 1
 > shippable on its own.
 
-**Goal:** Ship the same SatsPrice app on iOS (iPhone + iPad, iOS 16+) using the
+**Goal:** Ship the same SpotPrice app on iOS (iPhone + iPad, iOS 16+) using the
 existing Rust core and Compose Multiplatform UI.
 
 **Architecture (unchanged from PLAN.md):** Rust `core/` produces an

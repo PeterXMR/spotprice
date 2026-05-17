@@ -1,4 +1,4 @@
-# SatsPrice — task runner
+# SpotPrice — task runner
 # Run `just` (no args) to list recipes.
 
 default:
@@ -71,7 +71,7 @@ run-android: build-android
 
 # Open the iOS project in Xcode
 open-ios:
-    open app/ios/SatsPrice.xcodeproj
+    open app/ios/SpotPrice.xcodeproj
 
 # ---- Generate Kotlin bindings from UniFFI ----
 

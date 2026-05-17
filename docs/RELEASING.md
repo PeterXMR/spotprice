@@ -1,4 +1,4 @@
-# Releasing SatsPrice
+# Releasing SpotPrice
 
 How builds get from a commit to a downloadable APK, and what's still missing
 for a production-grade signed release.
@@ -49,12 +49,12 @@ That's it. The workflow:
 
 1. Builds the Rust core for all 4 Android ABIs.
 2. Assembles the debug APK.
-3. Renames it to `SatsPrice-v0.2.0.apk`.
+3. Renames it to `SpotPrice-v0.2.0.apk`.
 4. Creates a GitHub Release at `/releases/tag/v0.2.0` with auto-generated
    release notes from the commits since the previous tag.
 5. Attaches the APK as a release asset.
 
-Find the published release under [Releases](https://github.com/PeterXMR/satsprice/releases).
+Find the published release under [Releases](https://github.com/PeterXMR/spotprice/releases).
 
 ## Publishing a release manually (CI bypass)
 
@@ -68,10 +68,10 @@ cd app && ./gradlew :composeApp:assembleDebug && cd ..
 
 # Stage the APK with a meaningful filename
 cp app/composeApp/build/outputs/apk/debug/composeApp-debug.apk \
-   /tmp/SatsPrice-v0.2.0.apk
+   /tmp/SpotPrice-v0.2.0.apk
 
 # Create the release. Omit --prerelease for a real release.
-gh release create v0.2.0 /tmp/SatsPrice-v0.2.0.apk \
+gh release create v0.2.0 /tmp/SpotPrice-v0.2.0.apk \
     --title "v0.2.0" \
     --generate-notes
 ```
@@ -115,15 +115,15 @@ State of the world as of Phase 13:
 
    ```sh
    keytool -genkeypair -v \
-     -keystore satsprice-release.jks \
-     -alias satsprice \
+     -keystore spotprice-release.jks \
+     -alias spotprice \
      -keyalg RSA -keysize 4096 -validity 10000
    ```
 
 2. **Base64-encode it** so it fits in a GitHub Actions secret:
 
    ```sh
-   base64 -i satsprice-release.jks | tr -d '\n' > satsprice-release.jks.b64
+   base64 -i spotprice-release.jks | tr -d '\n' > spotprice-release.jks.b64
    ```
 
 3. **Add the secrets** under Settings → Secrets and variables → Actions →
@@ -131,9 +131,9 @@ State of the world as of Phase 13:
 
    | Secret | Value |
    |---|---|
-   | `RELEASE_KEYSTORE_BASE64` | Contents of `satsprice-release.jks.b64` |
+   | `RELEASE_KEYSTORE_BASE64` | Contents of `spotprice-release.jks.b64` |
    | `RELEASE_KEYSTORE_PASSWORD` | The keystore password from `keytool` |
-   | `RELEASE_KEY_ALIAS` | `satsprice` (or whatever alias you chose) |
+   | `RELEASE_KEY_ALIAS` | `spotprice` (or whatever alias you chose) |
    | `RELEASE_KEY_PASSWORD` | The key password from `keytool` (often same as keystore password) |
 
 4. **Set the variable** under the same page → *Variables* tab:
@@ -143,7 +143,7 @@ State of the world as of Phase 13:
    | `RELEASE_SIGNING_ENABLED` | `true` |
 
 5. **Push a tag.** The next `v*` tag will trigger `release.yml`, which produces
-   `SatsPrice-vX.Y.Z.apk` + `SatsPrice-vX.Y.Z.aab` and attaches them to the
+   `SpotPrice-vX.Y.Z.apk` + `SpotPrice-vX.Y.Z.aab` and attaches them to the
    GitHub Release alongside the debug APK from `android.yml`.
 
 ## Roadmap to Play Store
