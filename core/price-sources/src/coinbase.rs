@@ -40,6 +40,18 @@ struct Spot {
     amount: String,
 }
 
+/// Parse a Coinbase `/v2/prices/BTC-XXX/spot` response body into a [`Decimal`]
+/// price. Pulled out of [`PriceSource::fetch`] so it can be exercised by the
+/// cargo-fuzz harness under `core/price-sources/fuzz/`.
+///
+/// Pure / side-effect-free: same input bytes always produce the same result.
+pub fn parse_response(body: &[u8]) -> Result<Decimal, SourceError> {
+    let parsed: Response =
+        serde_json::from_slice(body).map_err(|e| SourceError::Parse(e.to_string()))?;
+    Decimal::from_str(&parsed.data.amount)
+        .map_err(|e| SourceError::Parse(format!("amount '{}': {}", parsed.data.amount, e)))
+}
+
 #[async_trait]
 impl PriceSource for CoinbaseSource {
     fn name(&self) -> &'static str {
@@ -58,9 +70,8 @@ impl PriceSource for CoinbaseSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let body: Response = resp.json().await?;
-        let price = Decimal::from_str(&body.data.amount)
-            .map_err(|e| SourceError::Parse(format!("amount '{}': {}", body.data.amount, e)))?;
+        let bytes = resp.bytes().await?;
+        let price = parse_response(&bytes)?;
         Ok(RawQuote {
             source: "coinbase".into(),
             fiat: fiat.to_lowercase(),

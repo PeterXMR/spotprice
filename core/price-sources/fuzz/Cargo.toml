@@ -1,0 +1,46 @@
+[package]
+name = "price-sources-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+# This crate is intentionally NOT a member of the root `core/` workspace.
+# `cargo-fuzz` builds it with a nightly-only `-Zsanitizer=address` flag, which
+# would otherwise force the whole workspace into nightly-only territory.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+satsprice-price-sources = { path = ".." }
+
+# Prevent this from interfering with documentation generation.
+[[bin]]
+name = "coinbase"
+path = "fuzz_targets/coinbase.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "kraken"
+path = "fuzz_targets/kraken.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bitstamp"
+path = "fuzz_targets/bitstamp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "coingecko"
+path = "fuzz_targets/coingecko.rs"
+test = false
+doc = false
+bench = false

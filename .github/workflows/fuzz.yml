@@ -1,0 +1,86 @@
+name: Fuzz
+
+# Why this workflow exists: the four parsers under `core/price-sources/` are
+# the project's largest attack surface. Every app launch hits four third-party
+# HTTP APIs, and a panic in any of those parsers means the user can't see
+# their Bitcoin price. Fuzzing these is cheap insurance against bad inputs
+# (malicious, malformed, or just unexpected) bricking the product.
+
+on:
+  schedule:
+    # 04:00 UTC nightly — the real bug-hunting pass.
+    - cron: '0 4 * * *'
+  pull_request:
+    # Smoke test (60s/target) only when the PR actually touches the parsers
+    # or the fuzz harness. Keeps the workflow off unrelated PRs.
+    paths:
+      - 'core/price-sources/**'
+      - 'core/price-sources/fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  workflow_dispatch:
+
+# Cancel stale runs on the same ref (e.g. force-pushed PR commits).
+# Scheduled and manual runs are always on `main`, so they share a group too —
+# fine, since each is a fresh, independent invocation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Don't let one parser's crash hide the others — we want a full picture.
+      fail-fast: false
+      matrix:
+        target: [coinbase, kraken, bitstamp, coingecko]
+    steps:
+      - uses: actions/checkout@v4
+
+      # cargo-fuzz builds with `-Zbuild-std` + address sanitizer, which needs
+      # the `rust-src` component to compile std with the instrumentation. The
+      # default minimal nightly profile doesn't ship it.
+      - name: Install Rust nightly (required by cargo-fuzz)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Cache fuzz build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/price-sources/fuzz
+
+      - name: Install cargo-fuzz (prebuilt)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      - name: Compute fuzz budget
+        id: budget
+        run: |
+          # PRs get a 60s smoke run per target — just enough to prove the
+          # harness still builds and runs. Nightly and manual runs get the
+          # real 10-minute budget per target.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "seconds=60" >> "$GITHUB_OUTPUT"
+          else
+            echo "seconds=600" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run fuzz target ${{ matrix.target }}
+        working-directory: core/price-sources/fuzz
+        run: |
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            -- -max_total_time=${{ steps.budget.outputs.seconds }}
+
+      # Crashes write to `fuzz/artifacts/<target>/crash-<hash>`. Upload them
+      # if the fuzz step failed so a maintainer can reproduce locally.
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}-${{ github.run_id }}
+          path: core/price-sources/fuzz/artifacts/
+          if-no-files-found: ignore
+          retention-days: 30

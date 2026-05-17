@@ -5,11 +5,19 @@
 //! `Arc<reqwest::Client>` so production can wire in `rustls-platform-verifier`
 //! while tests can use plain HTTP against `wiremock`.
 
-mod bitstamp;
-mod coinbase;
-mod coingecko;
+// Modules are `pub` so that out-of-crate consumers (notably the cargo-fuzz
+// harnesses under `core/price-sources/fuzz/`) can reach the per-source
+// `parse_response` helpers directly. End users should still go through
+// `PriceSource::fetch` via the re-exports below.
+#[doc(hidden)]
+pub mod bitstamp;
+#[doc(hidden)]
+pub mod coinbase;
+#[doc(hidden)]
+pub mod coingecko;
 mod error;
-mod kraken;
+#[doc(hidden)]
+pub mod kraken;
 
 pub use bitstamp::BitstampSource;
 pub use coinbase::CoinbaseSource;

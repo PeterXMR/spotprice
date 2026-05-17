@@ -43,6 +43,30 @@ struct Ticker {
     c: Vec<String>,
 }
 
+/// Parse a Kraken `/0/public/Ticker?pair=XBTXXX` response body into a [`Decimal`]
+/// price. Pulled out of [`PriceSource::fetch`] so it can be exercised by the
+/// cargo-fuzz harness under `core/price-sources/fuzz/`.
+///
+/// Pure / side-effect-free: same input bytes always produce the same result.
+pub fn parse_response(body: &[u8]) -> Result<Decimal, SourceError> {
+    let parsed: Response =
+        serde_json::from_slice(body).map_err(|e| SourceError::Parse(e.to_string()))?;
+    if !parsed.error.is_empty() {
+        return Err(SourceError::Parse(format!("api error: {:?}", parsed.error)));
+    }
+    // Kraken returns the first match under a normalized key — pick whatever's there.
+    let (_, ticker) = parsed
+        .result
+        .into_iter()
+        .next()
+        .ok_or_else(|| SourceError::Parse("empty result".into()))?;
+    let last = ticker
+        .c
+        .first()
+        .ok_or_else(|| SourceError::Parse("empty 'c' array".into()))?;
+    Decimal::from_str(last).map_err(|e| SourceError::Parse(format!("last '{last}': {e}")))
+}
+
 #[async_trait]
 impl PriceSource for KrakenSource {
     fn name(&self) -> &'static str {
@@ -62,22 +86,8 @@ impl PriceSource for KrakenSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let body: Response = resp.json().await?;
-        if !body.error.is_empty() {
-            return Err(SourceError::Parse(format!("api error: {:?}", body.error)));
-        }
-        // Kraken returns the first match under a normalized key — pick whatever's there.
-        let (_, ticker) = body
-            .result
-            .into_iter()
-            .next()
-            .ok_or_else(|| SourceError::Parse("empty result".into()))?;
-        let last = ticker
-            .c
-            .first()
-            .ok_or_else(|| SourceError::Parse("empty 'c' array".into()))?;
-        let price = Decimal::from_str(last)
-            .map_err(|e| SourceError::Parse(format!("last '{last}': {e}")))?;
+        let bytes = resp.bytes().await?;
+        let price = parse_response(&bytes)?;
         Ok(RawQuote {
             source: "kraken".into(),
             fiat: fiat.to_lowercase(),

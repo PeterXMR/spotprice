@@ -36,6 +36,24 @@ struct Response {
     bitcoin: HashMap<String, f64>,
 }
 
+/// Parse a CoinGecko `/api/v3/simple/price?ids=bitcoin&vs_currencies=XXX`
+/// response body into a [`Decimal`] price for the given (lowercase) fiat key.
+/// Pulled out of [`PriceSource::fetch`] so it can be exercised by the
+/// cargo-fuzz harness under `core/price-sources/fuzz/`.
+///
+/// Pure / side-effect-free: same input bytes + key always produce the same
+/// result.
+pub fn parse_response(body: &[u8], fiat_lc: &str) -> Result<Decimal, SourceError> {
+    let parsed: Response =
+        serde_json::from_slice(body).map_err(|e| SourceError::Parse(e.to_string()))?;
+    let raw = parsed
+        .bitcoin
+        .get(fiat_lc)
+        .copied()
+        .ok_or_else(|| SourceError::Parse(format!("missing bitcoin.{fiat_lc}")))?;
+    Decimal::try_from(raw).map_err(|e| SourceError::Parse(format!("bad number: {e}")))
+}
+
 #[async_trait]
 impl PriceSource for CoingeckoSource {
     fn name(&self) -> &'static str {
@@ -57,14 +75,8 @@ impl PriceSource for CoingeckoSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let body: Response = resp.json().await?;
-        let raw = body
-            .bitcoin
-            .get(&fiat_lc)
-            .copied()
-            .ok_or_else(|| SourceError::Parse(format!("missing bitcoin.{fiat_lc}")))?;
-        let price =
-            Decimal::try_from(raw).map_err(|e| SourceError::Parse(format!("bad number: {e}")))?;
+        let bytes = resp.bytes().await?;
+        let price = parse_response(&bytes, &fiat_lc)?;
         Ok(RawQuote {
             source: "coingecko".into(),
             fiat: fiat_lc,

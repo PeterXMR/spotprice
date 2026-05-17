@@ -35,6 +35,18 @@ struct Response {
     last: String,
 }
 
+/// Parse a Bitstamp `/api/v2/ticker/btcXXX/` response body into a [`Decimal`]
+/// price. Pulled out of [`PriceSource::fetch`] so it can be exercised by the
+/// cargo-fuzz harness under `core/price-sources/fuzz/`.
+///
+/// Pure / side-effect-free: same input bytes always produce the same result.
+pub fn parse_response(body: &[u8]) -> Result<Decimal, SourceError> {
+    let parsed: Response =
+        serde_json::from_slice(body).map_err(|e| SourceError::Parse(e.to_string()))?;
+    Decimal::from_str(&parsed.last)
+        .map_err(|e| SourceError::Parse(format!("last '{}': {}", parsed.last, e)))
+}
+
 #[async_trait]
 impl PriceSource for BitstampSource {
     fn name(&self) -> &'static str {
@@ -53,9 +65,8 @@ impl PriceSource for BitstampSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let body: Response = resp.json().await?;
-        let price = Decimal::from_str(&body.last)
-            .map_err(|e| SourceError::Parse(format!("last '{}': {}", body.last, e)))?;
+        let bytes = resp.bytes().await?;
+        let price = parse_response(&bytes)?;
         Ok(RawQuote {
             source: "bitstamp".into(),
             fiat: fiat_lc,
