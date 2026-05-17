@@ -16,6 +16,20 @@ rust-version = "1.85"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/USER/satsprice"
 
+# Hard-deny `unsafe` across every member of this workspace. The price-aggregation
+# and decimal math we ship has no legitimate need for `unsafe` — every member
+# crate is pure safe Rust today — and forbidding it at the workspace level
+# means a future change that introduces an `unsafe` block fails to compile
+# rather than slipping in unreviewed.
+#
+# UniFFI's generated Kotlin bindings DO call into the cdylib via raw FFI, but
+# that's Kotlin-side (JNA) and not subject to this lint. The fuzz crate under
+# `price-sources/fuzz/` declares its own `[workspace]` so this lint does not
+# propagate there, which is correct: `libfuzzer-sys` uses `unsafe` internally
+# for the harness.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
 [workspace.dependencies]
 # FFI
 uniffi = { version = "0.31", features = ["tokio"] }
