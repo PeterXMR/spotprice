@@ -55,7 +55,7 @@ jobs:
           tool: cargo-ndk
 
       - name: Set up Gradle (caches ~/.gradle)
-        uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3.5.0
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
 
       - name: Build Rust core for 4 Android ABIs
         working-directory: core/ffi
