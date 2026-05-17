@@ -51,10 +51,25 @@ jobs:
         with:
           workspaces: core/price-sources/fuzz
 
-      - name: Install cargo-fuzz (prebuilt)
-        uses: taiki-e/install-action@3771e22aa892e03fd35585fae288baad1755695c # v2.78.2
-        with:
-          tool: cargo-fuzz
+      # Build cargo-fuzz from source against the current nightly toolchain.
+      # The prebuilt distributed by `taiki-e/install-action` is built against
+      # a fixed-at-release-time nightly; when CI's nightly has drifted, the
+      # prebuilt's `-Zsanitizer=address` + `-Zbuild-std` invocations can fail
+      # in opaque ways before fuzzing even starts. Source build is ~1-2 min
+      # of extra CI time in exchange for matching toolchains. See #15.
+      - name: Install cargo-fuzz (source build, matches current nightly)
+        run: cargo install cargo-fuzz --locked
+
+      # Surface toolchain + tool versions before the fuzz run so future
+      # failures are diagnosable from the log alone (no SSH-into-runner needed).
+      - name: Verify toolchain + cargo-fuzz
+        working-directory: core/price-sources/fuzz
+        run: |
+          rustc +nightly --version
+          cargo +nightly --version
+          rustup +nightly component list --installed
+          cargo fuzz --version
+          cargo fuzz list
 
       - name: Compute fuzz budget
         id: budget
