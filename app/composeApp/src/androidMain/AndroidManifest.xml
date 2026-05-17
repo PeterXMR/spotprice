@@ -8,6 +8,10 @@
         android:name=".SpotPriceApplication"
         android:label="SpotPrice"
         android:icon="@android:drawable/btn_star_big_on"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="false"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar.Fullscreen">
         <activity

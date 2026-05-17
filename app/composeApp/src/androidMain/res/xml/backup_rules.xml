@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto-backup rules for Android 6.0–11 (API 23–30).
+
+  This file is referenced from AndroidManifest.xml as
+  `android:fullBackupContent="@xml/backup_rules"`. With
+  `android:allowBackup="false"` also set, the OS does not consult these
+  rules on a healthy code path — backup is denied at the higher level.
+
+  The explicit `<exclude>` entries below are defense-in-depth: if a future
+  change flips `allowBackup="true"` without updating this file, every
+  protected directory is still excluded by default, so no user state
+  silently starts syncing to Google Drive on the next install.
+
+  Domains:
+    root        — files under the app's internal root directory
+    file        — files written to getFilesDir()
+    database    — SQLite databases
+    sharedpref  — SharedPreferences XML
+    external    — files on external storage scoped to the app
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>
