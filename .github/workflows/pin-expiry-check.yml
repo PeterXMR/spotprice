@@ -1,0 +1,196 @@
+name: TLS pin expiry watchdog
+
+# Weekly check of the <pin-set expiration="YYYY-MM-DD"> values in
+# `app/composeApp/src/androidMain/res/xml/network_security_config.xml`.
+# When any pin-set is within THRESHOLD days of its soft-disable date, opens
+# a GitHub issue so the maintainer can refresh pins before the rotation
+# window closes.
+#
+# Issue-only by design — no auto-commit, no auto-PR. See docs/PIN-ROTATION.md
+# for the rationale and the manual refresh procedure that runs after the
+# issue fires.
+#
+# Bootstrap-tolerant: if the NSC file doesn't exist yet (e.g. PR #22
+# hasn't merged), the job prints a notice and exits 0. It auto-activates
+# once the file lands.
+
+on:
+  schedule:
+    # Every Monday 09:00 UTC. THRESHOLD = 30 days, so we get ~4 chances to
+    # notice before any pin actually crosses its expiration date. 09:00 is
+    # offset from security.yml's 06:00 to keep their runs from piling up at
+    # the same hour.
+    - cron: '0 9 * * 1'
+  # Manual trigger for testing — `threshold_days` simulates "what would
+  # happen if we ran 60 days from now" without changing the cron schedule;
+  # `force_open` smoke-tests the issue-creation path even when no pins are
+  # actually stale.
+  workflow_dispatch:
+    inputs:
+      threshold_days:
+        description: 'Open issue for pin-sets expiring within this many days'
+        required: false
+        default: '30'
+      force_open:
+        description: 'Open an issue even if no pins are stale (smoke test)'
+        type: boolean
+        required: false
+        default: false
+
+# Don't pile up duplicate runs if a manual dispatch lands on top of the
+# weekly cron. The watchdog is idle most weeks; serializing is fine.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check pin-set expiration dates
+    runs-on: ubuntu-latest
+    permissions:
+      # Read the XML file
+      contents: read
+      # Create the issue when a pin-set is stale
+      issues: write
+    env:
+      NSC_FILE: app/composeApp/src/androidMain/res/xml/network_security_config.xml
+      THRESHOLD: ${{ github.event.inputs.threshold_days || '30' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Before the cert-pinning PR (#22) lands, the NSC file doesn't exist
+      # on main. Treat that case as a no-op so the workflow is harmless to
+      # merge ahead of #22 — and auto-activates the moment that file appears.
+      - name: Verify NSC file exists
+        id: precheck
+        run: |
+          if [ -f "$NSC_FILE" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=Pin watchdog idle::No NSC file at $NSC_FILE. Once cert-pinning (PR #22) lands, this watchdog will start checking pin-set expiration dates weekly."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Parse every expiration="YYYY-MM-DD" attribute from the XML and
+      # compute days-until-soft-disable for each. Records both the full
+      # report (for the job summary) and the stale subset (for the issue
+      # body) as multiline step outputs.
+      - name: Compute days-until-expiry for every pin-set
+        if: steps.precheck.outputs.ready == 'true'
+        id: scan
+        run: |
+          set -euo pipefail
+          NOW=$(date -u +%s)
+          STALE=""
+          ALL=""
+          # GNU date is available on ubuntu-latest. macOS BSD date does not
+          # support this -d syntax — flag if you ever switch runners.
+          mapfile -t EXPS < <(
+            grep -oE 'expiration="[0-9-]+"' "$NSC_FILE" \
+              | sed 's/expiration="//;s/"$//' \
+              | sort -u
+          )
+          if [ ${#EXPS[@]} -eq 0 ]; then
+            echo "::warning::Found no expiration='YYYY-MM-DD' attributes in $NSC_FILE. Did the schema change?"
+            echo "stale=" >> "$GITHUB_OUTPUT"
+            echo "all=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for EXP in "${EXPS[@]}"; do
+            EXP_TS=$(date -u -d "$EXP" +%s)
+            DAYS=$(( (EXP_TS - NOW) / 86400 ))
+            ALL+="- \`$EXP\` — $DAYS days until silent-disable"$'\n'
+            if [ "$DAYS" -lt "$THRESHOLD" ]; then
+              STALE+="- \`$EXP\` — **$DAYS days** until silent-disable"$'\n'
+            fi
+          done
+          # Multi-line step outputs require the heredoc-delimited form.
+          {
+            echo "all<<SCAN_EOF"
+            printf '%s' "$ALL"
+            echo "SCAN_EOF"
+            echo "stale<<SCAN_EOF"
+            printf '%s' "$STALE"
+            echo "SCAN_EOF"
+          } >> "$GITHUB_OUTPUT"
+          # Always write a job summary so the run page is informative even
+          # when no issue is opened.
+          {
+            echo "## Pin expiry report"
+            echo ""
+            echo "Threshold: **$THRESHOLD days**"
+            echo ""
+            echo "$ALL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: No stale pins — idle
+        if: steps.precheck.outputs.ready == 'true' && steps.scan.outputs.stale == '' && github.event.inputs.force_open != 'true'
+        run: |
+          echo "::notice title=Pin watchdog idle::No pin-sets within $THRESHOLD days of expiry. Nothing to do."
+
+      # Idempotency: if there's already an open issue with the watchdog's
+      # title prefix, don't pile up duplicates week after week. The
+      # maintainer must close the existing issue (presumably after refreshing
+      # pins) before another can be opened.
+      - name: Check for existing open watchdog issue
+        if: steps.precheck.outputs.ready == 'true' && (steps.scan.outputs.stale != '' || github.event.inputs.force_open == 'true')
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COUNT=$(gh issue list \
+            --state open \
+            --search 'TLS pins approaching expiry in:title' \
+            --json number \
+            --jq 'length')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Build issue body
+        if: steps.existing.outputs.count == '0' && (steps.scan.outputs.stale != '' || github.event.inputs.force_open == 'true')
+        env:
+          STALE: ${{ steps.scan.outputs.stale }}
+          ALL: ${{ steps.scan.outputs.all }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Use a placeholder for STALE when force_open fired without any
+          # actually-stale pins, so the issue body still parses cleanly.
+          DISPLAY_STALE="${STALE:-_(force_open=true; no pin-sets currently within $THRESHOLD days of expiry)_}"
+          {
+            echo "The weekly pin-expiry watchdog detected one or more \`<pin-set expiration=\"...\">\` values in \`$NSC_FILE\` within **$THRESHOLD days** of their silent-disable date."
+            echo ""
+            echo "## Stale pin-sets"
+            echo ""
+            echo "$DISPLAY_STALE"
+            echo "## All pin-sets in this build"
+            echo ""
+            echo "$ALL"
+            echo "## What this means"
+            echo ""
+            echo "After a pin-set's \`expiration\` date passes, Android **silently disables pinning** for that host and falls back to platform CA trust. This is intentional fail-open behaviour (see [docs/PIN-ROTATION.md](docs/PIN-ROTATION.md)), but it means losing the MITM defense the pins provide until a refresh ships to users."
+            echo ""
+            echo "## To resolve"
+            echo ""
+            echo "1. Run the openssl one-liner from [docs/PIN-ROTATION.md](docs/PIN-ROTATION.md) for each host with a stale pin."
+            echo "2. Update the corresponding \`<pin>\` values and bump \`expiration\` to ~5 days before the new leaf's \`notAfter\`."
+            echo "3. Open a PR; merge; cut a release before the earliest \`expiration\` date."
+            echo "4. **Close this issue** once the fix is on \`main\`. The next weekly run won't open a duplicate while this issue is open."
+            echo ""
+            echo "---"
+            echo ""
+            echo "_This issue was opened by \`.github/workflows/pin-expiry-check.yml\` ([run details]($RUN_URL))._"
+          } > /tmp/issue-body.md
+          echo "Issue body written to /tmp/issue-body.md ($(wc -l < /tmp/issue-body.md) lines)"
+
+      - name: Open watchdog issue
+        if: steps.existing.outputs.count == '0' && (steps.scan.outputs.stale != '' || github.event.inputs.force_open == 'true')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "TLS pins approaching expiry — refresh required" \
+            --body-file /tmp/issue-body.md
+
+      - name: Skipped — existing open issue covers this
+        if: steps.existing.outputs.count != '0' && (steps.scan.outputs.stale != '' || github.event.inputs.force_open == 'true')
+        run: |
+          echo "::notice title=Pin watchdog deduped::An open issue titled 'TLS pins approaching expiry...' already exists. Close it after refreshing pins so future weekly runs can open a fresh one if needed."
