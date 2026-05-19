@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security configuration for SatsPrice (Android).
+
+  Strategy: pin the leaf SPKI AS A PRIMARY pin plus the issuing intermediate CA
+  SPKI as a BACKUP pin, per host. Both pins must be present for a chain to be
+  accepted, but only one needs to match the served chain, so the app keeps
+  working if the operator rotates the leaf inside the same intermediate (the
+  common case), and only breaks if the upstream rotates *both* the leaf and the
+  intermediate before we ship a new APK.
+
+  Each <pin-set> carries an `expiration` date set slightly BEFORE the leaf's
+  notAfter. After that date Android *silently disables pinning for the host*
+  (falling back to platform CA trust). That is the safety valve: this app is
+  shipped via GitHub Releases sideload + F-Droid, not Play autoupdate, so a
+  hard pin failure with no override could brick the price view for weeks for
+  users who don't update promptly. Fail-open after the rotation window is the
+  correct trade-off for a public, no-PII price viewer.
+
+  ROTATION PLAYBOOK: docs/PIN-ROTATION.md
+  Pins last fetched: 2026-05-17
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Coinbase: leaf CN=coinbase.com, issuer Google Trust Services WE1.
+         Leaf notAfter: 2026-08-15. -->
+    <domain-config>
+        <domain includeSubdomains="false">api.coinbase.com</domain>
+        <pin-set expiration="2026-08-10">
+            <!-- leaf SPKI (CN=coinbase.com) -->
+            <pin digest="SHA-256">ix5i6mHVs7kw80XOtoB82+pARnfs+IwIWdnK17U85bQ=</pin>
+            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- Kraken: leaf CN=api.kraken.com, issuer Google Trust Services WE1.
+         Leaf notAfter: 2026-07-31 (EARLIEST; this is the deadline driver). -->
+    <domain-config>
+        <domain includeSubdomains="false">api.kraken.com</domain>
+        <pin-set expiration="2026-07-26">
+            <!-- leaf SPKI (CN=api.kraken.com) -->
+            <pin digest="SHA-256">LMtRDtITTp3PyumS1hcvWu0m3rsXP5h7H1RWpsuWfiY=</pin>
+            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- Bitstamp: leaf CN=www.bitstamp.net, issuer DigiCert EV RSA CA G2.
+         Leaf notAfter: 2026-11-07. -->
+    <domain-config>
+        <domain includeSubdomains="false">www.bitstamp.net</domain>
+        <pin-set expiration="2026-11-02">
+            <!-- leaf SPKI (CN=www.bitstamp.net) -->
+            <pin digest="SHA-256">T8gnqF9YYK42QKSeWc8+KzbhluuwkpwylObkbzHjRDg=</pin>
+            <!-- intermediate SPKI (DigiCert EV RSA CA G2) -->
+            <pin digest="SHA-256">w9I8WrpHr1YAS0DugvLGsrI9Vm1yEkZAyllKxemXXf4=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- CoinGecko: leaf CN=api.coingecko.com, issuer Google Trust Services WE1.
+         Leaf notAfter: 2026-08-03. -->
+    <domain-config>
+        <domain includeSubdomains="false">api.coingecko.com</domain>
+        <pin-set expiration="2026-07-29">
+            <!-- leaf SPKI (CN=api.coingecko.com) -->
+            <pin digest="SHA-256">BhM1gGE+L4fCC9ER5xj4P1/deHgoXOjL9TsSj7Q5B9o=</pin>
+            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

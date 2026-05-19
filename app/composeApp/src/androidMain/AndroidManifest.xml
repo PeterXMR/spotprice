@@ -8,6 +8,7 @@
         android:name=".SpotPriceApplication"
         android:label="SpotPrice"
         android:icon="@android:drawable/btn_star_big_on"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
