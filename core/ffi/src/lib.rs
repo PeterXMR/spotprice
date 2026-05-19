@@ -13,6 +13,14 @@ use satsprice_convert::{btc_to_sats, fiat_to_sats, sats_to_btc, sats_to_fiat};
 use satsprice_price_sources::{all_sources, PriceSource};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Max time to spend completing the TCP+TLS handshake to an exchange.
+/// The per-request `.timeout()` on adapters does **not** bound this
+/// phase independently; without a connect-timeout, a dead network path
+/// can stall the task for the OS default (~75 s on Android) before
+/// per-request timeouts fire.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 uniffi::setup_scaffolding!();
 
@@ -22,7 +30,15 @@ pub struct PriceSnapshot {
     pub price: String,
     pub fiat: String,
     pub sources_used: u32,
-    /// True when this was served from cache after a failed refresh.
+    /// Reserved for the v0.2 stale-fallback path. **Always `false` in v0.1.**
+    ///
+    /// In v0.2 the cache will switch from moka's TTL-based eviction to a
+    /// timestamp-based freshness check, allowing the FFI layer to return
+    /// an expired snapshot with `stale = true` when a live refresh
+    /// fails. Today, when all sources fail we return
+    /// [`FfiError::InsufficientSources`] rather than falling back to
+    /// cache, so this flag never becomes `true` over the FFI boundary.
+    /// The field is kept on the wire for forward-compatible UniFFI ABI.
     pub stale: bool,
     pub timestamp: u64,
     /// Largest deviation among contributing sources, as a fraction (string).
@@ -44,6 +60,14 @@ pub enum FfiError {
 
     #[error("conversion error: {0}")]
     Conversion(String),
+
+    /// Surfaced from [`SatsPriceCore::new`] when the TLS provider or HTTP
+    /// client cannot be initialized (e.g. platform-verifier JNI bridge
+    /// fails on a misconfigured Android image). Mobile callers should
+    /// treat this as a fatal startup error and show an "unable to start"
+    /// dialog rather than crash.
+    #[error("initialization failed: {0}")]
+    Init(String),
 }
 
 #[derive(uniffi::Object)]
@@ -55,13 +79,20 @@ pub struct SatsPriceCore {
 #[uniffi::export(async_runtime = "tokio")]
 impl SatsPriceCore {
     /// Production constructor — bundles every default source.
+    ///
+    /// Returns [`FfiError::Init`] if the TLS stack or HTTP client cannot
+    /// be initialized. Previously this constructor panicked on init
+    /// failure; under the workspace's `panic = "abort"` profile that
+    /// became a SIGABRT during `Activity.onCreate` with no chance for
+    /// the Kotlin/Swift side to recover. Surfacing it as an error lets
+    /// the host app show a user-visible failure instead of crashing.
     #[uniffi::constructor]
-    pub fn new() -> Arc<Self> {
-        let client = Arc::new(build_http_client());
-        Arc::new(Self {
+    pub fn new() -> Result<Arc<Self>, FfiError> {
+        let client = Arc::new(build_http_client()?);
+        Ok(Arc::new(Self {
             sources: all_sources(client),
             cache: PriceCache::default_tuned(),
-        })
+        }))
     }
 
     /// Refresh the price for `fiat` across all sources.
@@ -69,6 +100,9 @@ impl SatsPriceCore {
     pub async fn fetch_price(&self, fiat: String) -> Result<PriceSnapshot, FfiError> {
         let fiat = fiat.to_lowercase();
         if let Some(cached) = self.cache.get(&fiat).await {
+            // stale=false: cache entries within moka's TTL are by
+            // definition fresh. The stale-fallback path described on
+            // PriceSnapshot.stale is reserved for v0.2.
             return Ok(snapshot_from_aggregated(cached, false));
         }
 
@@ -103,6 +137,8 @@ impl SatsPriceCore {
         };
         let aggregated = aggregate(quotes, &opts, now).ok_or(FfiError::InsufficientSources(got))?;
         self.cache.put(&fiat, aggregated.clone()).await;
+        // stale=false: fresh aggregation from live sources. See
+        // PriceSnapshot.stale doc for the v0.2 fallback plan.
         Ok(snapshot_from_aggregated(aggregated, false))
     }
 
@@ -166,27 +202,29 @@ fn snapshot_from_aggregated(agg: AggregatedPrice, stale: bool) -> PriceSnapshot 
 }
 
 #[cfg(feature = "mobile-tls")]
-fn build_http_client() -> reqwest::Client {
+fn build_http_client() -> Result<reqwest::Client, FfiError> {
     use rustls_platform_verifier::ConfigVerifierExt;
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let tls = rustls::ClientConfig::with_platform_verifier()
-        .expect("platform verifier should initialize");
+        .map_err(|e| FfiError::Init(format!("platform verifier: {e}")))?;
     reqwest::Client::builder()
         .user_agent("spotprice/0.1.0")
+        .connect_timeout(CONNECT_TIMEOUT)
         .use_preconfigured_tls(tls)
         .build()
-        .expect("reqwest client")
+        .map_err(|e| FfiError::Init(format!("reqwest client: {e}")))
 }
 
 #[cfg(not(feature = "mobile-tls"))]
-fn build_http_client() -> reqwest::Client {
+fn build_http_client() -> Result<reqwest::Client, FfiError> {
     // rustls 0.23 requires a default crypto provider before any TLS handshake.
     // install_default is idempotent (subsequent calls return Err which we ignore).
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     reqwest::Client::builder()
         .user_agent("spotprice/0.1.0")
+        .connect_timeout(CONNECT_TIMEOUT)
         .build()
-        .expect("reqwest client")
+        .map_err(|e| FfiError::Init(format!("reqwest client: {e}")))
 }
 
 #[cfg(test)]
@@ -195,7 +233,7 @@ mod tests {
 
     #[test]
     fn convert_sats_to_fiat_at_67k() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         // 1 BTC == $67,000
         let result = core
             .convert_sats_to_fiat(100_000_000, "67000".into())
@@ -205,7 +243,7 @@ mod tests {
 
     #[test]
     fn convert_fiat_to_sats_at_67k() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         // $67 at $67k/BTC == 0.001 BTC == 100_000 sats
         let result = core
             .convert_fiat_to_sats("67".into(), "67000".into())
@@ -215,7 +253,7 @@ mod tests {
 
     #[test]
     fn convert_rejects_invalid_decimal() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         let err = core
             .convert_sats_to_fiat(1, "banana".into())
             .expect_err("should fail");
@@ -224,7 +262,7 @@ mod tests {
 
     #[test]
     fn supported_fiats_includes_usd() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         let fiats = core.supported_fiats();
         assert!(fiats.contains(&"usd".to_string()));
     }

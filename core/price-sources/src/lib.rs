@@ -29,6 +29,44 @@ use async_trait::async_trait;
 use satsprice_aggregator::RawQuote;
 use std::sync::Arc;
 
+/// Maximum response body size accepted from any exchange. A BTC spot-price
+/// JSON payload is on the order of a few hundred bytes; 64 KiB is generous
+/// headroom while preventing an arbitrarily large response (from a
+/// compromised exchange, MITM, or BGP hijack) from buffering into heap and
+/// OOM-killing the app process.
+pub(crate) const MAX_RESPONSE_BYTES: usize = 64 * 1024;
+
+/// Buffer a response body up to `max_bytes` and return it as `Vec<u8>`.
+///
+/// Refuses early if `Content-Length` is declared and exceeds the cap.
+/// Streams the body chunk-by-chunk via [`reqwest::Response::chunk`] so a
+/// missing or lying `Content-Length` cannot trigger an unbounded
+/// `bytes()` allocation. As soon as the running total would exceed the
+/// cap the function returns `SourceError::Parse`, freeing the partial
+/// buffer.
+pub(crate) async fn read_body_capped(
+    mut resp: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, SourceError> {
+    if let Some(declared) = resp.content_length() {
+        if declared as usize > max_bytes {
+            return Err(SourceError::Parse(format!(
+                "response too large: declared {declared} bytes (cap {max_bytes})"
+            )));
+        }
+    }
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp.chunk().await? {
+        if buf.len() + chunk.len() > max_bytes {
+            return Err(SourceError::Parse(format!(
+                "response exceeded {max_bytes} bytes"
+            )));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
 #[async_trait]
 pub trait PriceSource: Send + Sync {
     fn name(&self) -> &'static str;

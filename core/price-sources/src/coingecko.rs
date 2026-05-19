@@ -1,4 +1,4 @@
-use crate::{now_unix, PriceSource, SourceError};
+use crate::{now_unix, read_body_capped, PriceSource, SourceError, MAX_RESPONSE_BYTES};
 use async_trait::async_trait;
 use reqwest::Client;
 use rust_decimal::Decimal;
@@ -75,7 +75,7 @@ impl PriceSource for CoingeckoSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let bytes = resp.bytes().await?;
+        let bytes = read_body_capped(resp, MAX_RESPONSE_BYTES).await?;
         let price = parse_response(&bytes, &fiat_lc)?;
         Ok(RawQuote {
             source: "coingecko".into(),

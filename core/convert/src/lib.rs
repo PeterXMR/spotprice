@@ -52,7 +52,12 @@ pub fn fiat_to_sats(fiat: Decimal, price_per_btc: Decimal) -> Result<u64, Conver
     if price_per_btc.is_sign_negative() || price_per_btc.is_zero() {
         return Err(ConvertError::NonPositivePrice);
     }
-    let btc = fiat / price_per_btc;
+    // `Decimal::Div` panics on scale overflow. Workspace ships with
+    // `panic = "abort"`, so on a user device that panic is a SIGABRT
+    // with no recovery — guard with checked_div instead.
+    let btc = fiat
+        .checked_div(price_per_btc)
+        .ok_or(ConvertError::Overflow)?;
     btc_to_sats(btc)
 }
 
@@ -122,6 +127,17 @@ mod tests {
             fiat_to_sats(dec!(-1), dec!(67000)),
             Err(ConvertError::Negative(_))
         ));
+    }
+
+    #[test]
+    fn fiat_to_sats_overflow_returns_err_not_panic() {
+        // `Decimal::MAX` / a very small price would overflow the result's
+        // representable scale. We assert this returns Err rather than
+        // panicking (which would be SIGABRT under panic=abort).
+        let huge = Decimal::MAX;
+        let tiny_price = dec!(0.0000001);
+        let result = fiat_to_sats(huge, tiny_price);
+        assert!(matches!(result, Err(ConvertError::Overflow)));
     }
 
     proptest! {
