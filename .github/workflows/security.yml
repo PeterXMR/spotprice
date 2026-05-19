@@ -1,8 +1,12 @@
 name: Security
 
-# Two complementary gates on the Rust supply chain:
+# Three complementary gates on the Rust supply chain:
 #   - cargo-deny:  license policy + duplicate/source bans (config: deny.toml)
 #   - cargo-audit: RustSec advisory DB CVE check against core/Cargo.lock
+#   - cargo-vet:   crowd-sourced audit attestations from Google/Mozilla/Embark
+#                  vet stores, gating new transitive deps that no one we trust
+#                  has audited. Skips until the maintainer runs `cargo vet
+#                  init` and commits core/supply-chain/. See docs/CARGO-VET.md.
 #
 # Lives in a separate workflow from android.yml on purpose: faster signal,
 # clearer required-check naming, and the schedule trigger doesn't need to
@@ -70,3 +74,56 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: core
+
+  cargo-vet:
+    # cargo-vet complements cargo-audit. cargo-audit catches *known CVEs*;
+    # cargo-vet catches *no-one-we-trust-has-looked* — i.e. a freshly added
+    # transitive dep from an unknown maintainer that hasn't (yet) had a CVE
+    # filed but should still get human eyes before it ships in our APK.
+    #
+    # Bootstrap state: until the maintainer runs `cargo vet init` and commits
+    # `core/supply-chain/`, this job is a no-op that prints a notice. Once the
+    # supply-chain dir exists, this job enforces. That way merging this
+    # workflow doesn't break CI for a repo that hasn't been initialized yet,
+    # and the enforcement turns on the moment the dir lands. See
+    # docs/CARGO-VET.md for the one-time bootstrap procedure.
+    name: cargo-vet (supply chain audits)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check for supply-chain/ bootstrap state
+        id: bootstrap
+        run: |
+          if [ -f core/supply-chain/config.toml ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notice — cargo-vet not yet bootstrapped
+        if: steps.bootstrap.outputs.ready == 'false'
+        run: |
+          echo "::notice title=cargo-vet skipped::core/supply-chain/ does not exist yet. Run \`cargo vet init\` (see docs/CARGO-VET.md) and commit the resulting directory to enable enforcement. This job will start gating PRs automatically once that lands."
+
+      - name: Set up Rust toolchain
+        if: steps.bootstrap.outputs.ready == 'true'
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache Rust build (core workspace)
+        if: steps.bootstrap.outputs.ready == 'true'
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: core
+
+      - name: Install cargo-vet (prebuilt)
+        if: steps.bootstrap.outputs.ready == 'true'
+        uses: taiki-e/install-action@3771e22aa892e03fd35585fae288baad1755695c # v2.78.2
+        with:
+          tool: cargo-vet
+
+      - name: Run cargo-vet check
+        if: steps.bootstrap.outputs.ready == 'true'
+        run: cargo vet --manifest-path core/Cargo.toml check
