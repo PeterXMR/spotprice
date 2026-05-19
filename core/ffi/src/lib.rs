@@ -30,7 +30,15 @@ pub struct PriceSnapshot {
     pub price: String,
     pub fiat: String,
     pub sources_used: u32,
-    /// True when this was served from cache after a failed refresh.
+    /// Reserved for the v0.2 stale-fallback path. **Always `false` in v0.1.**
+    ///
+    /// In v0.2 the cache will switch from moka's TTL-based eviction to a
+    /// timestamp-based freshness check, allowing the FFI layer to return
+    /// an expired snapshot with `stale = true` when a live refresh
+    /// fails. Today, when all sources fail we return
+    /// [`FfiError::InsufficientSources`] rather than falling back to
+    /// cache, so this flag never becomes `true` over the FFI boundary.
+    /// The field is kept on the wire for forward-compatible UniFFI ABI.
     pub stale: bool,
     pub timestamp: u64,
     /// Largest deviation among contributing sources, as a fraction (string).
@@ -92,6 +100,9 @@ impl SatsPriceCore {
     pub async fn fetch_price(&self, fiat: String) -> Result<PriceSnapshot, FfiError> {
         let fiat = fiat.to_lowercase();
         if let Some(cached) = self.cache.get(&fiat).await {
+            // stale=false: cache entries within moka's TTL are by
+            // definition fresh. The stale-fallback path described on
+            // PriceSnapshot.stale is reserved for v0.2.
             return Ok(snapshot_from_aggregated(cached, false));
         }
 
@@ -126,6 +137,8 @@ impl SatsPriceCore {
         };
         let aggregated = aggregate(quotes, &opts, now).ok_or(FfiError::InsufficientSources(got))?;
         self.cache.put(&fiat, aggregated.clone()).await;
+        // stale=false: fresh aggregation from live sources. See
+        // PriceSnapshot.stale doc for the v0.2 fallback plan.
         Ok(snapshot_from_aggregated(aggregated, false))
     }
 
