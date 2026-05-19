@@ -23,7 +23,6 @@ pub fn aggregate(quotes: Vec<RawQuote>, opts: &AggregateOpts, now: u64) -> Optio
     if quotes.is_empty() {
         return None;
     }
-    let fiat = quotes[0].fiat.clone();
     let fresh = prune_stale(quotes, opts.max_age_secs, now);
     if fresh.is_empty() {
         return None;
@@ -32,6 +31,12 @@ pub fn aggregate(quotes: Vec<RawQuote>, opts: &AggregateOpts, now: u64) -> Optio
     if (trimmed.len() as u32) < opts.min_sources {
         return None;
     }
+    // Derive the fiat label from a *surviving* quote, not from `quotes[0]`
+    // (which may have been stale-pruned). All quotes in a single aggregate()
+    // call are expected to share the same fiat — picking from `trimmed`
+    // makes that invariant explicit and prevents a mislabel if the first
+    // input quote was dropped.
+    let fiat = trimmed[0].fiat.clone();
     let prices: Vec<_> = trimmed.iter().map(|q| q.price).collect();
     let price = median(&prices)?;
     Some(AggregatedPrice {
@@ -134,4 +139,20 @@ mod tests {
         assert_eq!(result.sources_used, 3, "outlier should have been dropped");
     }
 
+    #[test]
+    fn aggregate_fiat_label_survives_first_quote_being_stale() {
+        // First quote is stale (age 900s vs 60s TTL) and gets pruned. The
+        // returned `.fiat` must come from a surviving quote rather than the
+        // dropped quotes[0], otherwise a multi-fiat mix could mislabel the
+        // price.
+        let qs = vec![
+            q("first_but_stale", dec!(67000), 100),
+            q("coingecko", dec!(67000), 1000),
+            q("coinbase", dec!(67050), 1000),
+            q("kraken", dec!(66980), 1000),
+        ];
+        let result = aggregate(qs, &AggregateOpts::default(), 1000).expect("aggregate");
+        assert_eq!(result.fiat, "usd");
+        assert_eq!(result.sources_used, 3);
+    }
 }
