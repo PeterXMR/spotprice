@@ -169,16 +169,35 @@ impl SatsPriceCore {
         btc_to_sats(btc).map_err(|e| FfiError::Conversion(e.to_string()))
     }
 
-    /// Alphabetically-sorted set of common fiats. Coverage by source:
-    /// * Major fiats (~7): all 4 sources support → real median + dispersion guard
-    /// * Mid-tier (~20): Coingecko + Coinbase → 2-source median
-    /// * Long tail (PYG, UYU, KES, …): Coingecko only → single-source feed
+    /// Alphabetically-sorted set of supported fiat currencies. Coverage by
+    /// source (verified against each API's documented endpoints):
+    ///
+    /// * **4 sources** (CoinGecko + Coinbase + Kraken + Bitstamp): USD, EUR,
+    ///   GBP — Bitstamp's full intersection, gets the strongest dispersion
+    ///   guard.
+    /// * **3 sources** (CoinGecko + Coinbase + Kraken): JPY, CAD, CHF, AUD —
+    ///   Kraken's BTC fiat coverage.
+    /// * **2 sources** (CoinGecko + Coinbase): every other code in CoinGecko's
+    ///   `/simple/supported_vs_currencies` fiat subset, including BDT, BHD,
+    ///   BMD, GEL, KWD, LKR, MMK, PKR which were missing prior to this list.
+    /// * **1 source** (Coinbase `/v2/prices/BTC-XXX/spot` only): COP, EGP,
+    ///   KES, PEN, PYG, RON, UYU — these are NOT in CoinGecko's vs_currencies
+    ///   list despite the previous doc-comment claiming so. Single-source
+    ///   feeds depend on the FFI layer's `min_sources: 1` override and have
+    ///   no dispersion check.
+    ///
+    /// Deliberately excluded from CoinGecko's vs_currencies set: XAG (silver),
+    /// XAU (gold), XDR (IMF Special Drawing Rights) — these aren't national
+    /// currencies and the picker UI says "Select currencies". VEF is also
+    /// excluded — the Venezuelan bolívar fuerte was deprecated in 2018 and
+    /// replaced by VES, which CoinGecko doesn't yet expose.
     pub fn supported_fiats(&self) -> Vec<String> {
         [
-            "aed", "ars", "aud", "brl", "cad", "chf", "clp", "cny", "cop", "czk", "dkk", "egp",
-            "eur", "gbp", "hkd", "huf", "idr", "ils", "inr", "jpy", "kes", "krw", "mxn", "myr",
-            "ngn", "nok", "nzd", "pen", "php", "pln", "pyg", "ron", "rub", "sar", "sek", "sgd",
-            "thb", "try", "twd", "uah", "usd", "uyu", "vnd", "zar",
+            "aed", "ars", "aud", "bdt", "bhd", "bmd", "brl", "cad", "chf", "clp", "cny", "cop",
+            "czk", "dkk", "egp", "eur", "gbp", "gel", "hkd", "huf", "idr", "ils", "inr", "jpy",
+            "kes", "krw", "kwd", "lkr", "mmk", "mxn", "myr", "ngn", "nok", "nzd", "pen", "php",
+            "pkr", "pln", "pyg", "ron", "rub", "sar", "sek", "sgd", "thb", "try", "twd", "uah",
+            "usd", "uyu", "vnd", "zar",
         ]
         .iter()
         .map(|s| (*s).to_string())
@@ -265,5 +284,64 @@ mod tests {
         let core = SatsPriceCore::new().expect("init");
         let fiats = core.supported_fiats();
         assert!(fiats.contains(&"usd".to_string()));
+    }
+
+    #[test]
+    fn supported_fiats_includes_latam_currencies() {
+        // Regression for the "I don't see ARS/PYG in the app" report.
+        // Latin-American currencies that should be present.
+        let core = SatsPriceCore::new().expect("init");
+        let fiats = core.supported_fiats();
+        for code in ["ars", "brl", "clp", "cop", "mxn", "pen", "pyg", "uyu"] {
+            assert!(
+                fiats.contains(&code.to_string()),
+                "missing expected fiat code: {code}",
+            );
+        }
+    }
+
+    #[test]
+    fn supported_fiats_includes_newly_added_common_currencies() {
+        // The 8 codes added in this commit to close the gap with CoinGecko's
+        // /simple/supported_vs_currencies fiat list. Each represents a
+        // commonly-used national currency (PKR alone covers ~240M people).
+        let core = SatsPriceCore::new().expect("init");
+        let fiats = core.supported_fiats();
+        for code in ["bdt", "bhd", "bmd", "gel", "kwd", "lkr", "mmk", "pkr"] {
+            assert!(
+                fiats.contains(&code.to_string()),
+                "missing newly-added fiat code: {code}",
+            );
+        }
+    }
+
+    #[test]
+    fn supported_fiats_is_alphabetically_sorted() {
+        // The picker UI presents the list as-is; alphabetical order makes it
+        // navigable. Catches accidental insertion order errors during future
+        // additions.
+        let core = SatsPriceCore::new().expect("init");
+        let fiats = core.supported_fiats();
+        let mut sorted = fiats.clone();
+        sorted.sort();
+        assert_eq!(
+            fiats, sorted,
+            "supported_fiats must be alphabetically sorted"
+        );
+    }
+
+    #[test]
+    fn supported_fiats_has_no_duplicates() {
+        // Catches a copy-paste error during future additions where a code
+        // accidentally appears twice (which would show as a duplicate row in
+        // the picker UI).
+        let core = SatsPriceCore::new().expect("init");
+        let fiats = core.supported_fiats();
+        let unique: std::collections::HashSet<&String> = fiats.iter().collect();
+        assert_eq!(
+            unique.len(),
+            fiats.len(),
+            "supported_fiats contains duplicates",
+        );
     }
 }
