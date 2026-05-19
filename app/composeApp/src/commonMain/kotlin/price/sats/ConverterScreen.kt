@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -382,7 +383,19 @@ private fun FiatRow(
 
 @Composable
 private fun BottomCurrencyBar(count: Int, onClick: () -> Unit) {
-    Column {
+    // `navigationBarsPadding()` lifts the whole bar (divider + row) above the
+    // system gesture / 3-button nav bar. Required because:
+    //   * the app targets SDK 36, so Android draws content edge-to-edge by
+    //     default — the `bottomBar` slot reaches the physical bottom of the
+    //     screen, behind the system nav inset;
+    //   * Scaffold's `contentWindowInsets` only covers the content slot, not
+    //     the bottomBar slot — custom bottomBar composables manage their own
+    //     insets (Material3's `BottomAppBar` does this internally, but we use
+    //     a plain Column here);
+    //   * applied to the outer Column so the HorizontalDivider also shifts up,
+    //     keeping it visually at the bottom of the *app's* content rather than
+    //     orphaned under the system bar.
+    Column(modifier = Modifier.navigationBarsPadding()) {
         HorizontalDivider()
         Row(
             modifier = Modifier
