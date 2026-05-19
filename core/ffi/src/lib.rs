@@ -52,6 +52,14 @@ pub enum FfiError {
 
     #[error("conversion error: {0}")]
     Conversion(String),
+
+    /// Surfaced from [`SatsPriceCore::new`] when the TLS provider or HTTP
+    /// client cannot be initialized (e.g. platform-verifier JNI bridge
+    /// fails on a misconfigured Android image). Mobile callers should
+    /// treat this as a fatal startup error and show an "unable to start"
+    /// dialog rather than crash.
+    #[error("initialization failed: {0}")]
+    Init(String),
 }
 
 #[derive(uniffi::Object)]
@@ -63,13 +71,20 @@ pub struct SatsPriceCore {
 #[uniffi::export(async_runtime = "tokio")]
 impl SatsPriceCore {
     /// Production constructor — bundles every default source.
+    ///
+    /// Returns [`FfiError::Init`] if the TLS stack or HTTP client cannot
+    /// be initialized. Previously this constructor panicked on init
+    /// failure; under the workspace's `panic = "abort"` profile that
+    /// became a SIGABRT during `Activity.onCreate` with no chance for
+    /// the Kotlin/Swift side to recover. Surfacing it as an error lets
+    /// the host app show a user-visible failure instead of crashing.
     #[uniffi::constructor]
-    pub fn new() -> Arc<Self> {
-        let client = Arc::new(build_http_client());
-        Arc::new(Self {
+    pub fn new() -> Result<Arc<Self>, FfiError> {
+        let client = Arc::new(build_http_client()?);
+        Ok(Arc::new(Self {
             sources: all_sources(client),
             cache: PriceCache::default_tuned(),
-        })
+        }))
     }
 
     /// Refresh the price for `fiat` across all sources.
@@ -174,21 +189,21 @@ fn snapshot_from_aggregated(agg: AggregatedPrice, stale: bool) -> PriceSnapshot 
 }
 
 #[cfg(feature = "mobile-tls")]
-fn build_http_client() -> reqwest::Client {
+fn build_http_client() -> Result<reqwest::Client, FfiError> {
     use rustls_platform_verifier::ConfigVerifierExt;
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let tls = rustls::ClientConfig::with_platform_verifier()
-        .expect("platform verifier should initialize");
+        .map_err(|e| FfiError::Init(format!("platform verifier: {e}")))?;
     reqwest::Client::builder()
         .user_agent("spotprice/0.1.0")
         .connect_timeout(CONNECT_TIMEOUT)
         .use_preconfigured_tls(tls)
         .build()
-        .expect("reqwest client")
+        .map_err(|e| FfiError::Init(format!("reqwest client: {e}")))
 }
 
 #[cfg(not(feature = "mobile-tls"))]
-fn build_http_client() -> reqwest::Client {
+fn build_http_client() -> Result<reqwest::Client, FfiError> {
     // rustls 0.23 requires a default crypto provider before any TLS handshake.
     // install_default is idempotent (subsequent calls return Err which we ignore).
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -196,7 +211,7 @@ fn build_http_client() -> reqwest::Client {
         .user_agent("spotprice/0.1.0")
         .connect_timeout(CONNECT_TIMEOUT)
         .build()
-        .expect("reqwest client")
+        .map_err(|e| FfiError::Init(format!("reqwest client: {e}")))
 }
 
 #[cfg(test)]
@@ -205,7 +220,7 @@ mod tests {
 
     #[test]
     fn convert_sats_to_fiat_at_67k() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         // 1 BTC == $67,000
         let result = core
             .convert_sats_to_fiat(100_000_000, "67000".into())
@@ -215,7 +230,7 @@ mod tests {
 
     #[test]
     fn convert_fiat_to_sats_at_67k() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         // $67 at $67k/BTC == 0.001 BTC == 100_000 sats
         let result = core
             .convert_fiat_to_sats("67".into(), "67000".into())
@@ -225,7 +240,7 @@ mod tests {
 
     #[test]
     fn convert_rejects_invalid_decimal() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         let err = core
             .convert_sats_to_fiat(1, "banana".into())
             .expect_err("should fail");
@@ -234,7 +249,7 @@ mod tests {
 
     #[test]
     fn supported_fiats_includes_usd() {
-        let core = SatsPriceCore::new();
+        let core = SatsPriceCore::new().expect("init");
         let fiats = core.supported_fiats();
         assert!(fiats.contains(&"usd".to_string()));
     }
