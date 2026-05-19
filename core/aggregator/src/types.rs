@@ -13,7 +13,8 @@ pub struct RawQuote {
     pub fetched_at: u64,
 }
 
-/// The aggregated, trust-weighted price returned to callers.
+/// The aggregated price returned to callers (median of surviving sources;
+/// trust-weighting is reserved for v0.2 — see crate-level docs).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregatedPrice {
     pub price: Decimal,

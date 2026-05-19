@@ -1,16 +1,20 @@
 //! Cross-source aggregation: takes a set of [`RawQuote`]s, drops stale and
 //! outlier readings, and returns a robust [`AggregatedPrice`] only if at
 //! least `min_sources` quotes survive.
+//!
+//! NOTE: v0.1 aggregation is median + σ-outlier-rejection. Per-source
+//! trust-weighting (EMA scores) is deferred to v0.2; the `TrustScores` type
+//! that previously lived in this crate was removed because it was never
+//! wired into [`aggregate`].
 
 mod median;
-mod trust;
 mod types;
 
 pub use median::{dispersion, median, prune_outliers, prune_stale};
-pub use trust::TrustScores;
 pub use types::{AggregateOpts, AggregatedPrice, RawQuote};
 
-/// Aggregate the given quotes into a single trust-weighted price.
+/// Aggregate the given quotes into a single robust price (median across
+/// the surviving sources).
 ///
 /// Returns `None` when fewer than `opts.min_sources` quotes survive the
 /// stale + outlier filters — callers should keep showing the last cached
@@ -130,21 +134,4 @@ mod tests {
         assert_eq!(result.sources_used, 3, "outlier should have been dropped");
     }
 
-    #[test]
-    fn trust_zero_deviation_keeps_score_near_one() {
-        let mut t = TrustScores::new();
-        for _ in 0..50 {
-            t.update("a", dec!(0));
-        }
-        assert!(t.score("a") > dec!(0.99));
-    }
-
-    #[test]
-    fn trust_large_deviation_drives_score_down() {
-        let mut t = TrustScores::new();
-        for _ in 0..200 {
-            t.update("bad", dec!(100));
-        }
-        assert!(t.score("bad") < dec!(0.05));
-    }
 }
