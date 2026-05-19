@@ -1,4 +1,4 @@
-use crate::{now_unix, PriceSource, SourceError};
+use crate::{now_unix, read_body_capped, PriceSource, SourceError, MAX_RESPONSE_BYTES};
 use async_trait::async_trait;
 use reqwest::Client;
 use rust_decimal::Decimal;
@@ -70,7 +70,7 @@ impl PriceSource for CoinbaseSource {
         if !resp.status().is_success() {
             return Err(SourceError::Http(resp.status().as_u16()));
         }
-        let bytes = resp.bytes().await?;
+        let bytes = read_body_capped(resp, MAX_RESPONSE_BYTES).await?;
         let price = parse_response(&bytes)?;
         Ok(RawQuote {
             source: "coinbase".into(),
@@ -105,6 +105,26 @@ mod tests {
         let quote = source.fetch("usd").await.expect("fetch");
         assert_eq!(quote.source, "coinbase");
         assert_eq!(quote.price, dec!(67432.10));
+    }
+
+    #[tokio::test]
+    async fn rejects_oversize_response_body() {
+        // Exercises the workspace-wide `read_body_capped` defense: a body
+        // larger than `MAX_RESPONSE_BYTES` (64 KiB) must be rejected as
+        // `SourceError::Parse`, not buffered into heap. The helper is
+        // shared by all four adapters; coinbase is the canary.
+        let server = MockServer::start().await;
+        let huge_body = "x".repeat(crate::MAX_RESPONSE_BYTES + 1);
+        Mock::given(method("GET"))
+            .and(path("/v2/prices/BTC-USD/spot"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(huge_body))
+            .mount(&server)
+            .await;
+
+        let client = Arc::new(Client::new());
+        let source = CoinbaseSource::new(client).with_base_url(server.uri());
+        let err = source.fetch("usd").await.expect_err("should fail");
+        assert!(matches!(err, SourceError::Parse(_)));
     }
 
     #[tokio::test]
