@@ -13,6 +13,14 @@ use satsprice_convert::{btc_to_sats, fiat_to_sats, sats_to_btc, sats_to_fiat};
 use satsprice_price_sources::{all_sources, PriceSource};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Max time to spend completing the TCP+TLS handshake to an exchange.
+/// The per-request `.timeout()` on adapters does **not** bound this
+/// phase independently; without a connect-timeout, a dead network path
+/// can stall the task for the OS default (~75 s on Android) before
+/// per-request timeouts fire.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 uniffi::setup_scaffolding!();
 
@@ -173,6 +181,7 @@ fn build_http_client() -> reqwest::Client {
         .expect("platform verifier should initialize");
     reqwest::Client::builder()
         .user_agent("spotprice/0.1.0")
+        .connect_timeout(CONNECT_TIMEOUT)
         .use_preconfigured_tls(tls)
         .build()
         .expect("reqwest client")
@@ -185,6 +194,7 @@ fn build_http_client() -> reqwest::Client {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     reqwest::Client::builder()
         .user_agent("spotprice/0.1.0")
+        .connect_timeout(CONNECT_TIMEOUT)
         .build()
         .expect("reqwest client")
 }
