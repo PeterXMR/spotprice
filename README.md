@@ -11,14 +11,17 @@ No backend — all logic runs on the device.
   - `convert/` — sats ↔ fiat math (`rust_decimal`)
   - `cache/` — in-memory + persisted last-known price
   - `ffi/` — single UniFFI surface exposed to mobile
-- `app/` — KMP + Compose Multiplatform app:
-  - `android/` — Android shell (one Activity)
-  - `ios/` — Xcode project (SwiftUI host + `ComposeUIViewController`)
-  - `domain/` — shared business logic (Kotlin)
-  - `ui/` — Compose Multiplatform screens
+- `app/` — KMP + Compose Multiplatform app, single `composeApp` module:
+  - `composeApp/src/commonMain/` — shared Kotlin business logic +
+    Compose Multiplatform UI (target-agnostic)
+  - `composeApp/src/androidMain/` — Android shell: one Activity hosting
+    the Compose UI and loading the UniFFI-generated bindings
+  - iOS host: not yet wired up — see [docs/PLAN-ios.md](docs/PLAN-ios.md)
+    for the roadmap
 
-Native libraries are produced by `cargo-ndk` (Android `.so`) and `cargo-swift`
-(iOS `.xcframework`) and wired to the Kotlin/Swift sides through UniFFI-generated bindings.
+Native libraries are produced by `cargo-ndk` (Android `.so`) today, and will
+be produced by `cargo-swift` (iOS `.xcframework`) once the iOS host lands.
+Both are wired to Kotlin/Swift through UniFFI-generated bindings.
 
 ## Build prerequisites
 
@@ -26,7 +29,7 @@ Native libraries are produced by `cargo-ndk` (Android `.so`) and `cargo-swift`
 |---|---|---|
 | Rust | 1.85+ | rustup, pinned via `rust-toolchain.toml` |
 | Android NDK | r28+ (for 16 KB pages) | Android Studio SDK Manager |
-| JDK | 21 | Temurin / `brew install --cask temurin@21` |
+| JDK | 21 (LTS) | Temurin / `brew install --cask temurin@21` |
 | Xcode | 16+ (full app, not CLT) | Mac App Store (~10 GB) |
 | `cargo-ndk` | 4.1+ | `cargo install cargo-ndk` |
 | `cargo-swift` | 0.11+ | `cargo install cargo-swift` |
