@@ -48,7 +48,7 @@ jobs:
       # Prebuilt binary — same pattern as android.yml uses for cargo-ndk.
       # Avoids a 2+ minute source build every run.
       - name: Install cargo-deny (prebuilt)
-        uses: taiki-e/install-action@7be9fd86bd1707236395105d6e9329dd1511a7e1 # v2.79.0
+        uses: taiki-e/install-action@f48d2f8ba2b452934c948b7be1a768079c3632ff # v2.79.6
         with:
           tool: cargo-deny
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Install cargo-vet (prebuilt)
         if: steps.bootstrap.outputs.ready == 'true'
-        uses: taiki-e/install-action@3771e22aa892e03fd35585fae288baad1755695c # v2.78.2
+        uses: taiki-e/install-action@f48d2f8ba2b452934c948b7be1a768079c3632ff # v2.79.6
         with:
           tool: cargo-vet
 
