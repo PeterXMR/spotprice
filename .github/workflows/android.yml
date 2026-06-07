@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       # Deterministic build timestamp derived from the head commit. Picked up
       # by anything that honors SOURCE_DATE_EPOCH (including rustc's debuginfo
@@ -69,7 +69,7 @@ jobs:
         run: cargo test --manifest-path core/Cargo.toml --all-features
 
       - name: Install cargo-ndk (prebuilt)
-        uses: taiki-e/install-action@3d832235cb306500b868c2632a137d48634568cd # v2.81.0
+        uses: taiki-e/install-action@56545b37b57562edd73171cb6c62cc509db4c34e # v2.81.7
         with:
           tool: cargo-ndk
 
