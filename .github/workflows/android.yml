@@ -69,12 +69,12 @@ jobs:
         run: cargo test --manifest-path core/Cargo.toml --all-features
 
       - name: Install cargo-ndk (prebuilt)
-        uses: taiki-e/install-action@56545b37b57562edd73171cb6c62cc509db4c34e # v2.81.7
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
         with:
           tool: cargo-ndk
 
       - name: Set up Gradle (caches ~/.gradle)
-        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
 
       # --remap-path-prefix scrubs runner-specific absolute paths ($HOME and
       # $GITHUB_WORKSPACE) out of the compiled .so files, replacing them with
