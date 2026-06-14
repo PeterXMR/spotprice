@@ -1,12 +1,12 @@
 [versions]
-kotlin = "2.3.21"
+kotlin = "2.4.0"
 agp = "8.12.3"
-compose-multiplatform = "1.11.0"
+compose-multiplatform = "1.11.1"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
 androidx-activityCompose = "1.9.3"
-jna = "5.18.1"
+jna = "5.19.1"
 # 2.8.4 = the lifecycle line CMP 1.7.3 was tested against on the JetBrains side.
 jetbrains-lifecycle = "2.10.0"
 # JetBrains' KMP fork of AndroidX nav. "alpha" is their versioning convention
