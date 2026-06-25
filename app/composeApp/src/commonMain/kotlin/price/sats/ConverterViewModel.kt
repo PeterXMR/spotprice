@@ -92,10 +92,11 @@ class ConverterViewModel(
     }
 
     fun setInput(source: InputSource, amount: String) {
+        val normalized = toDotDecimal(amount)
         inputSource = source
-        inputAmount = amount
+        inputAmount = normalized
         prefs.setInputSource(source)
-        prefs.setInputAmount(amount)
+        prefs.setInputAmount(normalized)
         // Typing directly into a Bitcoin field also defines the editable unit.
         when (source) {
             InputSource.Sats -> if (bitcoinUnit != BitcoinUnit.SATS) {
@@ -234,6 +235,16 @@ class ConverterViewModel(
     }
 }
 
+/**
+ * Canonicalise the decimal separator to a dot for display and storage.
+ *
+ * EUR-locale soft keyboards emit ',' as the decimal key, but the app (and the
+ * Rust core) use a dot, so the field should read "0.1" rather than "0,1". This
+ * is a bare character swap, not full normalisation, so in-progress input stays
+ * intact: typing "0," becomes "0." and the user can still add the fraction.
+ */
+internal fun toDotDecimal(raw: String): String = raw.replace(',', '.')
+
 internal fun computeSats(
     core: PriceCore,
     source: InputSource,
@@ -243,12 +254,55 @@ internal fun computeSats(
     if (raw.isBlank()) return null
     return runCatching {
         when (source) {
-            InputSource.Sats -> raw.toULongOrNull()
-            InputSource.Btc -> core.convertBtcToSats(raw)
+            // Sats is an integer — strip digit-grouping separators but keep a
+            // stray '-' so a negative entry fails to parse (→ null) instead of
+            // being silently flipped to a positive amount.
+            InputSource.Sats -> raw.filter { it.isDigit() || it == '-' }.toULongOrNull()
+            InputSource.Btc -> core.convertBtcToSats(normalizeAmount(raw))
             is InputSource.Fiat -> {
                 val price = snapshots[source.code]?.price ?: return null
-                core.convertFiatToSats(raw, price)
+                core.convertFiatToSats(normalizeAmount(raw), price)
             }
         }
     }.getOrNull()
+}
+
+/**
+ * Normalise a user-typed decimal amount into the canonical `123.45` form that
+ * the Rust core's `Decimal::from_str` accepts.
+ *
+ * The Rust parser is locale-invariant — it only understands `.` as the decimal
+ * mark. But Android soft keyboards in much of the world (and every EUR-locale
+ * keyboard) surface `,` as the decimal key, so a user converting euros types
+ * `50,5`. Without this step that string throws inside the core and every
+ * derived field silently blanks out.
+ *
+ * Rules, chosen to be unambiguous rather than locale-aware:
+ *  - Drop everything that isn't a digit or a separator (`.`/`,`) — strips
+ *    currency symbols, spaces, stray characters.
+ *  - The **last** separator is the decimal point; any earlier separators are
+ *    digit grouping and are removed. This handles both `1,234.56` (US) and
+ *    `1.234,56` (EU) grouping conventions.
+ *  - A leading `-` is preserved so the core can reject it as it does today.
+ *
+ * Returns `""` for input that carries no digits; callers treat that as "no
+ * value", matching the existing blank-input behaviour.
+ */
+internal fun normalizeAmount(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return ""
+    val sign = if (trimmed.startsWith("-")) "-" else ""
+    val digitsAndSeps = trimmed.filter { it.isDigit() || it == '.' || it == ',' }
+    if (digitsAndSeps.isEmpty()) return ""
+
+    val lastSep = digitsAndSeps.indexOfLast { it == '.' || it == ',' }
+    if (lastSep < 0) return sign + digitsAndSeps
+
+    val intPart = digitsAndSeps.substring(0, lastSep).filter { it.isDigit() }
+    val fracPart = digitsAndSeps.substring(lastSep + 1).filter { it.isDigit() }
+    return when {
+        intPart.isEmpty() && fracPart.isEmpty() -> ""
+        fracPart.isEmpty() -> sign + intPart.ifEmpty { "0" }
+        else -> "$sign${intPart.ifEmpty { "0" }}.$fracPart"
+    }
 }

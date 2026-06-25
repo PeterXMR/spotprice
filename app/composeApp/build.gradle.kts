@@ -31,6 +31,9 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.multiplatform.settings)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             // JNA's `@aar` variant ships the .so files needed for UniFFI runtime
