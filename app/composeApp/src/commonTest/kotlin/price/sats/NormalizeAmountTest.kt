@@ -38,4 +38,15 @@ class NormalizeAmountTest {
         assertEquals("", normalizeAmount("   "))
         assertEquals("", normalizeAmount("abc"))
     }
+
+    // --- toDotDecimal: the display-time comma -> dot swap ---
+
+    @Test fun dot_decimal_comma_becomes_dot() = assertEquals("0.1", toDotDecimal("0,1"))
+
+    @Test fun dot_decimal_dot_is_unchanged() = assertEquals("0.1", toDotDecimal("0.1"))
+
+    @Test fun dot_decimal_keeps_trailing_separator_for_in_progress_typing() =
+        assertEquals("0.", toDotDecimal("0,"))
+
+    @Test fun dot_decimal_leaves_plain_integer_alone() = assertEquals("100", toDotDecimal("100"))
 }

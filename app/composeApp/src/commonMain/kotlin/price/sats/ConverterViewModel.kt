@@ -92,10 +92,11 @@ class ConverterViewModel(
     }
 
     fun setInput(source: InputSource, amount: String) {
+        val normalized = toDotDecimal(amount)
         inputSource = source
-        inputAmount = amount
+        inputAmount = normalized
         prefs.setInputSource(source)
-        prefs.setInputAmount(amount)
+        prefs.setInputAmount(normalized)
         // Typing directly into a Bitcoin field also defines the editable unit.
         when (source) {
             InputSource.Sats -> if (bitcoinUnit != BitcoinUnit.SATS) {
@@ -233,6 +234,16 @@ class ConverterViewModel(
         private const val REFRESH_INTERVAL_MS = 65_000L
     }
 }
+
+/**
+ * Canonicalise the decimal separator to a dot for display and storage.
+ *
+ * EUR-locale soft keyboards emit ',' as the decimal key, but the app (and the
+ * Rust core) use a dot, so the field should read "0.1" rather than "0,1". This
+ * is a bare character swap, not full normalisation, so in-progress input stays
+ * intact: typing "0," becomes "0." and the user can still add the fraction.
+ */
+internal fun toDotDecimal(raw: String): String = raw.replace(',', '.')
 
 internal fun computeSats(
     core: PriceCore,
