@@ -23,18 +23,51 @@ load prices on Android with no in-app override. We mitigate this two ways:
 
 ## Current pin expiration deadlines (set when pins were last refreshed)
 
-| Host                | Leaf notAfter | `expiration` in XML | Issuer (intermediate)      |
-|---------------------|---------------|---------------------|----------------------------|
-| api.kraken.com      | 2026-07-31    | **2026-07-26**      | Google Trust Services WE1  |
-| api.coingecko.com   | 2026-08-03    | 2026-07-29          | Google Trust Services WE1  |
-| api.coinbase.com    | 2026-08-15    | 2026-08-10          | Google Trust Services WE1  |
-| www.bitstamp.net    | 2026-11-07    | 2026-11-02          | DigiCert EV RSA CA G2      |
+The table and deadline sentence below are regenerated automatically by
+`scripts/rotate_tls_pins.py` (run from `.github/workflows/pin-rotation.yml`).
+Don't hand-edit between the `AUTO-PIN-*` markers — your changes will be
+overwritten on the next rotation.
 
-**The driving deadline is api.kraken.com on 2026-07-26.** A release with
-refreshed pins MUST be on GitHub Releases (and have had time to propagate to
-F-Droid + users) before that date, or pinning silently disables for Kraken.
+<!-- AUTO-PIN-TABLE:START -->
+| Host | Leaf notAfter | `expiration` in XML | Issuer (intermediate) |
+|------|---------------|---------------------|-----------------------|
+| api.kraken.com | 2026-07-31 | **2026-07-26** | Google Trust Services WE1 |
+| api.coingecko.com | 2026-08-03 | 2026-07-29 | Google Trust Services WE1 |
+| api.coinbase.com | 2026-08-15 | 2026-08-10 | Google Trust Services WE1 |
+| www.bitstamp.net | 2026-11-07 | 2026-11-02 | DigiCert EV RSA CA G2 |
+<!-- AUTO-PIN-TABLE:END -->
 
-## How to regenerate pins
+<!-- AUTO-PIN-DEADLINE:START -->
+**The driving deadline is api.kraken.com on 2026-07-26.** A release with refreshed pins MUST be on GitHub Releases (and have had time to propagate to F-Droid + users) before that date, or pinning silently disables for api.kraken.com.
+<!-- AUTO-PIN-DEADLINE:END -->
+
+## Automated rotation (preferred)
+
+Pin rotation is automated end-to-end by **`scripts/rotate_tls_pins.py`**, run
+daily by **`.github/workflows/pin-rotation.yml`**. The script reads the host
+list straight from `network_security_config.xml` (so adding a `<domain-config>`
+brings it under rotation with no further wiring), re-fetches each live chain,
+recomputes the leaf + intermediate SPKI pins, sets `expiration` to `--lead-days`
+(default 5) before the leaf's `notAfter`, bumps the "Pins last fetched" stamp,
+and regenerates the table + deadline sentence above (between the `AUTO-PIN-*`
+markers — don't hand-edit those).
+
+When the live certs differ from what's pinned, the workflow opens (or updates)
+a single rolling PR on the `automation/tls-pin-rotation` branch. **It never
+auto-merges** — a maintainer still reviews the diff and verifies on-device
+before merging. The daily cadence means a freshly rotated upstream cert is
+usually turned into a PR within 24h, long before the weekly watchdog would nag.
+
+Run it locally to preview a rotation without writing anything:
+
+```bash
+python3 scripts/rotate_tls_pins.py --dry-run
+```
+
+## How to regenerate pins manually (fallback)
+
+Use this only if the automation is unavailable (e.g. a host blocks the runner,
+or you're rotating offline). It's the same computation the script performs.
 
 Run this for each of the four hosts. It extracts the SPKI SHA-256 base64 pin
 for the leaf certificate served right now:
@@ -81,60 +114,25 @@ Bump the "Pins last fetched" comment at the top of the XML and the table above,
 ship a release, and verify on a real device against a proxy like mitmproxy
 (pinning should **reject** the proxy's cert).
 
-## CI: scheduled pin-expiry watchdog
+## CI: the two pin workflows
 
-Add `.github/workflows/pin-expiry-check.yml` (suggested skeleton — not yet
-wired in):
+Two scheduled workflows cover pins, with distinct jobs:
 
-```yaml
-name: Pin expiry check
-on:
-  schedule:
-    - cron: '0 9 * * 1'    # every Monday 09:00 UTC
-  workflow_dispatch:
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check pin-set expirations
-        run: |
-          set -euo pipefail
-          THRESHOLD_DAYS=30
-          NOW=$(date -u +%s)
-          STALE=()
-          # Extract every expiration="YYYY-MM-DD" from the XML.
-          grep -oE 'expiration="[0-9-]+"' \
-            app/composeApp/src/androidMain/res/xml/network_security_config.xml \
-            | sed 's/expiration="//;s/"$//' | sort -u > /tmp/exps.txt
-          while read -r EXP; do
-            EXP_TS=$(date -u -d "$EXP" +%s)
-            DAYS=$(( (EXP_TS - NOW) / 86400 ))
-            echo "$EXP -> $DAYS days"
-            if [ "$DAYS" -lt "$THRESHOLD_DAYS" ]; then
-              STALE+=("$EXP ($DAYS days)")
-            fi
-          done < /tmp/exps.txt
-          if [ ${#STALE[@]} -gt 0 ]; then
-            printf 'STALE_PINS=%s\n' "${STALE[*]}" >> "$GITHUB_ENV"
-          fi
-      - name: Open issue if stale
-        if: env.STALE_PINS != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const stale = process.env.STALE_PINS;
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `TLS pins approaching expiry: ${stale}`,
-              body: `One or more <pin-set expiration="..."> values in network_security_config.xml are within 30 days of expiry. Refresh pins per docs/PIN-ROTATION.md and cut a release before the earliest date.\n\nStale: ${stale}`,
-              labels: ['security', 'maintenance']
-            });
-```
+| Workflow | Schedule | Does |
+|----------|----------|------|
+| `.github/workflows/pin-rotation.yml` | daily 07:00 UTC | **Fixes** stale pins — re-fetches live certs and opens a PR when they differ. |
+| `.github/workflows/pin-expiry-check.yml` | Mon 09:00 UTC | **Backstop nag** — opens an issue if any `expiration` is within 30 days, in case a rotation PR was missed. |
 
-This gives ~4 weeks of lead time on the earliest pin, which comfortably covers
-"write a PR, get it reviewed, cut a release, wait for users to update."
+In the steady state the watchdog never fires: the rotation workflow refreshes
+pins (and the maintainer merges + releases) well before the 30-day threshold.
+The watchdog remains as a safety net for the cases automation can't handle on
+its own — e.g. the upstream hasn't issued a replacement cert yet, or a rotation
+PR has been sitting unmerged.
+
+**Prerequisite for the rotation PR:** repo *Settings → Actions → General →
+"Allow GitHub Actions to create and approve pull requests"* must be enabled, or
+the `gh pr create` step returns 403. The branch push itself works regardless.
+
+The 30-day watchdog threshold gives ~4 weeks of lead time on the earliest pin,
+which comfortably covers "review the auto-PR, cut a release, wait for users to
+update."
