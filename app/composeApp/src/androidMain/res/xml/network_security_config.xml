@@ -17,6 +17,13 @@
   users who don't update promptly. Fail-open after the rotation window is the
   correct trade-off for a public, no-PII price viewer.
 
+  The `expiration` and `<pin>` values below are refreshed automatically by
+  scripts/rotate_tls_pins.py (run weekly from .github/workflows/pin-rotation.yml),
+  which re-fetches each host's live chain and opens a PR when it changes. The
+  comments here deliberately carry NO per-cert facts (issuer, notAfter) so they
+  can never drift out of sync with the pins; the current issuer + leaf notAfter
+  for every host live in the auto-maintained table in docs/PIN-ROTATION.md.
+
   ROTATION PLAYBOOK: docs/PIN-ROTATION.md
   Pins last fetched: 2026-05-17
 -->
@@ -27,50 +34,50 @@
         </trust-anchors>
     </base-config>
 
-    <!-- Coinbase: leaf CN=coinbase.com, issuer Google Trust Services WE1.
-         Leaf notAfter: 2026-08-15. -->
+    <!-- Coinbase price API (api.coinbase.com).
+         Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.coinbase.com</domain>
         <pin-set expiration="2026-08-10">
-            <!-- leaf SPKI (CN=coinbase.com) -->
+            <!-- leaf SPKI (primary pin) -->
             <pin digest="SHA-256">ix5i6mHVs7kw80XOtoB82+pARnfs+IwIWdnK17U85bQ=</pin>
-            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
     </domain-config>
 
-    <!-- Kraken: leaf CN=api.kraken.com, issuer Google Trust Services WE1.
-         Leaf notAfter: 2026-07-31 (EARLIEST; this is the deadline driver). -->
+    <!-- Kraken price API (api.kraken.com).
+         Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.kraken.com</domain>
         <pin-set expiration="2026-07-26">
-            <!-- leaf SPKI (CN=api.kraken.com) -->
+            <!-- leaf SPKI (primary pin) -->
             <pin digest="SHA-256">LMtRDtITTp3PyumS1hcvWu0m3rsXP5h7H1RWpsuWfiY=</pin>
-            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
     </domain-config>
 
-    <!-- Bitstamp: leaf CN=www.bitstamp.net, issuer DigiCert EV RSA CA G2.
-         Leaf notAfter: 2026-11-07. -->
+    <!-- Bitstamp price API (www.bitstamp.net).
+         Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">www.bitstamp.net</domain>
         <pin-set expiration="2026-11-02">
-            <!-- leaf SPKI (CN=www.bitstamp.net) -->
+            <!-- leaf SPKI (primary pin) -->
             <pin digest="SHA-256">T8gnqF9YYK42QKSeWc8+KzbhluuwkpwylObkbzHjRDg=</pin>
-            <!-- intermediate SPKI (DigiCert EV RSA CA G2) -->
+            <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">w9I8WrpHr1YAS0DugvLGsrI9Vm1yEkZAyllKxemXXf4=</pin>
         </pin-set>
     </domain-config>
 
-    <!-- CoinGecko: leaf CN=api.coingecko.com, issuer Google Trust Services WE1.
-         Leaf notAfter: 2026-08-03. -->
+    <!-- CoinGecko price API (api.coingecko.com).
+         Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.coingecko.com</domain>
         <pin-set expiration="2026-07-29">
-            <!-- leaf SPKI (CN=api.coingecko.com) -->
+            <!-- leaf SPKI (primary pin) -->
             <pin digest="SHA-256">BhM1gGE+L4fCC9ER5xj4P1/deHgoXOjL9TsSj7Q5B9o=</pin>
-            <!-- intermediate SPKI (Google Trust Services WE1) -->
+            <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
     </domain-config>
