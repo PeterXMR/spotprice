@@ -18,7 +18,7 @@
   correct trade-off for a public, no-PII price viewer.
 
   The `expiration` and `<pin>` values below are refreshed automatically by
-  scripts/rotate_tls_pins.py (run weekly from .github/workflows/pin-rotation.yml),
+  scripts/rotate_tls_pins.py (run daily from .github/workflows/pin-rotation.yml),
   which re-fetches each host's live chain and opens a PR when it changes. The
   comments here deliberately carry NO per-cert facts (issuer, notAfter) so they
   can never drift out of sync with the pins; the current issuer + leaf notAfter
