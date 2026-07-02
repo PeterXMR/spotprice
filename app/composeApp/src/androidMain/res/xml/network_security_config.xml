@@ -25,7 +25,7 @@
   for every host live in the auto-maintained table in docs/PIN-ROTATION.md.
 
   ROTATION PLAYBOOK: docs/PIN-ROTATION.md
-  Pins last fetched: 2026-05-17
+  Pins last fetched: 2026-07-02
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
@@ -50,9 +50,9 @@
          Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.kraken.com</domain>
-        <pin-set expiration="2026-07-26">
+        <pin-set expiration="2026-09-23">
             <!-- leaf SPKI (primary pin) -->
-            <pin digest="SHA-256">LMtRDtITTp3PyumS1hcvWu0m3rsXP5h7H1RWpsuWfiY=</pin>
+            <pin digest="SHA-256">bgRJ9aEZeU9T9RdxtiHelTU4RL+r5J6jfFBcETA2a3E=</pin>
             <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
@@ -74,9 +74,9 @@
          Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.coingecko.com</domain>
-        <pin-set expiration="2026-07-29">
+        <pin-set expiration="2026-09-24">
             <!-- leaf SPKI (primary pin) -->
-            <pin digest="SHA-256">BhM1gGE+L4fCC9ER5xj4P1/deHgoXOjL9TsSj7Q5B9o=</pin>
+            <pin digest="SHA-256">kp1v0jlp//ByUTsRsGxHsBCbBT3cdWT+SN+tk8lIFp0=</pin>
             <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
