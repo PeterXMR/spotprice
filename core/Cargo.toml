@@ -32,7 +32,7 @@ unsafe_code = "forbid"
 
 [workspace.dependencies]
 # FFI
-uniffi = { version = "0.31", features = ["tokio"] }
+uniffi = { version = "0.32", features = ["tokio"] }
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
