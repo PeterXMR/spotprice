@@ -31,14 +31,14 @@ overwritten on the next rotation.
 <!-- AUTO-PIN-TABLE:START -->
 | Host | Leaf notAfter | `expiration` in XML | Issuer (intermediate) |
 |------|---------------|---------------------|-----------------------|
-| api.kraken.com | 2026-07-31 | **2026-07-26** | Google Trust Services WE1 |
-| api.coingecko.com | 2026-08-03 | 2026-07-29 | Google Trust Services WE1 |
-| api.coinbase.com | 2026-08-15 | 2026-08-10 | Google Trust Services WE1 |
+| api.kraken.com | 2026-09-28 | **2026-09-23** | Google Trust Services WE1 |
+| api.coingecko.com | 2026-10-01 | 2026-09-26 | Google Trust Services WE1 |
+| api.coinbase.com | 2026-10-04 | 2026-09-29 | Google Trust Services WE1 |
 | www.bitstamp.net | 2026-11-07 | 2026-11-02 | DigiCert EV RSA CA G2 |
 <!-- AUTO-PIN-TABLE:END -->
 
 <!-- AUTO-PIN-DEADLINE:START -->
-**The driving deadline is api.kraken.com on 2026-07-26.** A release with refreshed pins MUST be on GitHub Releases (and have had time to propagate to F-Droid + users) before that date, or pinning silently disables for api.kraken.com.
+**The driving deadline is api.kraken.com on 2026-09-23.** A release with refreshed pins MUST be on GitHub Releases (and have had time to propagate to F-Droid + users) before that date, or pinning silently disables for api.kraken.com.
 <!-- AUTO-PIN-DEADLINE:END -->
 
 ## Automated rotation (preferred)
