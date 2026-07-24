@@ -25,7 +25,7 @@
   for every host live in the auto-maintained table in docs/PIN-ROTATION.md.
 
   ROTATION PLAYBOOK: docs/PIN-ROTATION.md
-  Pins last fetched: 2026-07-09
+  Pins last fetched: 2026-07-24
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
@@ -38,9 +38,9 @@
          Current issuer + leaf notAfter: see docs/PIN-ROTATION.md. -->
     <domain-config>
         <domain includeSubdomains="false">api.coinbase.com</domain>
-        <pin-set expiration="2026-09-29">
+        <pin-set expiration="2026-10-08">
             <!-- leaf SPKI (primary pin) -->
-            <pin digest="SHA-256">KUnddVn4H2YCi5Yy/As5J1wJiczMYpzdJ6ERqY88goM=</pin>
+            <pin digest="SHA-256">4yqUio7u1JfHemLrBiGbo/jcpYfIGEp7gdf/xgSbABE=</pin>
             <!-- issuing-intermediate SPKI (backup pin) -->
             <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
         </pin-set>
