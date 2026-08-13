@@ -36,8 +36,22 @@ fmt:
 deny:
     cargo deny --manifest-path core/Cargo.toml check
 
-# Check core/Cargo.lock against the RustSec advisory DB
-audit:
+# Verify every ignore entry in .cargo/audit.toml is still justified — has its
+# suppression-meta line, is inside its re-check date, and names a crate that is
+# still absent from the build graph. Mirrors the audit-suppressions job in
+# .github/workflows/security.yml.
+audit-suppressions:
+    python3 scripts/check_audit_suppressions.py
+
+# Check core/Cargo.lock against the RustSec advisory DB.
+#
+# Must run from the repo root: cargo-audit reads `<cwd>/.cargo/audit.toml` and,
+# unlike Cargo with config.toml, does NOT walk up to ancestor directories. just
+# executes recipes from the justfile's directory, so this is always correct —
+# but a bare `cd core && cargo audit` misses the suppression list and reports
+# findings CI does not. core/.cargo/audit.toml symlinks to the root file so
+# that invocation agrees too.
+audit: audit-suppressions
     cargo audit --file core/Cargo.lock
 
 # ---- Cross-compile for Android ----

@@ -1,0 +1,89 @@
+# cargo-audit configuration for the spotprice core workspace.
+#
+# WHY THIS FILE IS AT THE REPO ROOT AND NOT IN core/
+#
+# cargo-audit resolves its config as `<cwd>/.cargo/audit.toml` and does NOT
+# walk up to ancestor directories the way Cargo does for `.cargo/config.toml`.
+# So the location has to match the *working directory* of every caller, not the
+# location of the workspace being scanned. Both callers run from the repo root
+# and point at the lockfile with `--file`:
+#
+#   - CI: rustsec/audit-check builds `cargo audit --json --file <wd>/Cargo.lock`
+#     and runs it from the checkout root. Its `working-directory: core` input
+#     only feeds that `--file` path — it does not chdir. (See the action's
+#     src/main.ts.)
+#   - Local: the `audit` recipe in justfile is `cargo audit --file
+#     core/Cargo.lock`, and just executes from the justfile's directory.
+#
+# Putting this in core/.cargo/ therefore silently does nothing in CI — the run
+# reports `"ignore":[]` and still fails. Root is the one path both callers see,
+# which keeps the suppression list a single source of truth. This also matches
+# where deny.toml already lives.
+#
+# NOTE: the action also exposes an `ignore:` input in security.yml. Deliberately
+# not used — it would split the suppression from its justification and give CI
+# and `just audit` different answers.
+#
+# Reference: https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# Every entry here MUST state (a) why the vulnerable code cannot be reached
+# from anything we ship, and (b) the concrete condition that removes the entry.
+# No bare advisory IDs — an unexplained ignore is indistinguishable from an
+# unpatched CVE six months later.
+#
+# ENFORCED, NOT ADVISORY. scripts/check_audit_suppressions.py runs on every PR,
+# every push to main, and the weekly schedule (see the `audit-suppressions` job
+# in .github/workflows/security.yml, and `just audit` locally). It fails the
+# build if any entry below:
+#
+#   - lacks a `# suppression-meta: crate=<name> recheck=YYYY-MM-DD` line,
+#   - is past its `recheck` date (warns from 30 days out), or
+#   - names a crate that has since entered the build graph.
+#
+# That last check is the one that matters. cargo-audit ignores by advisory ID,
+# not by reachability, so without it a suppression keeps silencing the advisory
+# even after the crate starts being compiled — and feature unification means
+# that can happen without anyone editing core/Cargo.toml or this file.
+ignore = [
+    # RUSTSEC-2026-0235 — rkyv 0.7.46. Shared-pointer validation ignores
+    # pointer metadata, so a crafted archive can forge a slice length and make
+    # the safe `rkyv::access` / `rkyv::from_bytes` APIs read out of bounds.
+    #
+    # NOT REACHABLE FROM SPOTPRICE. rkyv is an *optional* dependency of
+    # rust_decimal, gated behind that crate's `rkyv` feature
+    # (`rkyv = ["dep:rkyv"]` in rust_decimal's manifest). This workspace
+    # declares rust_decimal with `features = ["serde-with-str"]` only, so the
+    # feature is never enabled and rkyv is never compiled:
+    #
+    #   $ cargo tree -i rkyv --target all --all-features
+    #   warning: nothing to print.
+    #
+    #   $ cat target/debug/.fingerprint/rust_decimal-*/lib-rust_decimal.json
+    #   ... "features": ["default", "serde", "serde-with-str", "std"] ...
+    #
+    # It still shows up in core/Cargo.lock because the lockfile is
+    # feature-agnostic by design: it records the union of all optional
+    # dependencies so that enabling a feature later never rewrites the lock.
+    # cargo-audit scans that raw lockfile, which is why it flags a crate we do
+    # not build. cargo-deny — which resolves a feature-aware graph, see the
+    # [graph] section of deny.toml — does not flag it. The two jobs disagreeing
+    # on the same commit is the tell for a lockfile-only finding.
+    #
+    # NO UPGRADE PATH TODAY. The advisory is fixed in rkyv >= 0.8.17, and
+    # rust_decimal 1.42.1 (latest as of 2026-08-13) still pins `rkyv 0.7.46`.
+    # `cargo update -p rkyv` cannot cross the 0.7 -> 0.8 major boundary, so
+    # unlike RUSTSEC-2026-0204/0190/0221 this one cannot be closed with a
+    # transitive version bump.
+    #
+    # REMOVE THIS ENTRY when rust_decimal ships a release whose optional rkyv
+    # dependency is >= 0.8.17. Re-check by 2026-11-13.
+    #
+    # DANGER: this becomes a live vulnerability the moment anything enables
+    # rust_decimal's `rkyv` or `rkyv-safe` feature — including indirectly, via
+    # feature unification, if some future dependency enables it. That case is
+    # caught by the reachability check in the guard script rather than left to
+    # whoever makes the change noticing this comment.
+    # suppression-meta: crate=rkyv recheck=2026-11-13
+    "RUSTSEC-2026-0235",
+]
