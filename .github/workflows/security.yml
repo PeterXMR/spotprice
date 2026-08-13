@@ -75,6 +75,36 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: core
 
+  audit-suppressions:
+    # Gives the ignore list in .cargo/audit.toml teeth. cargo-audit suppresses
+    # by advisory ID, so an entry keeps silencing its advisory forever — past
+    # its re-check date, and even after the suppressed crate re-enters the build
+    # graph. This job re-verifies the premise behind every entry on each run.
+    #
+    # Deliberately a separate job from cargo-audit rather than a step inside it:
+    # the audit itself runs via rustsec/audit-check, which owns its whole step,
+    # and a distinct required check names the failure precisely ("a suppression
+    # is stale") instead of burying it in a green advisory scan.
+    name: cargo-audit suppression guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Needed for the `cargo tree -i` reachability check, which resolves the
+      # real feature-aware graph the lockfile alone cannot express.
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache Rust build (core workspace)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: core
+
+      - name: Verify every audit suppression is still justified
+        run: python3 scripts/check_audit_suppressions.py
+
   cargo-vet:
     # cargo-vet complements cargo-audit. cargo-audit catches *known CVEs*;
     # cargo-vet catches *no-one-we-trust-has-looked* — i.e. a freshly added

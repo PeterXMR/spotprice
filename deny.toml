@@ -41,6 +41,19 @@ yanked = "deny"
 unmaintained = "workspace"
 # Add advisory IDs here only with a justification comment, e.g.:
 #   "RUSTSEC-YYYY-NNNN",  # <reason this is acceptable; remove by <date>>
+#
+# NOT the same list as `.cargo/audit.toml`, and it should stay shorter. This
+# list is empty even though audit.toml suppresses RUSTSEC-2026-0235 (rkyv),
+# because cargo-deny resolves a feature-aware graph — with `all-features = false`
+# above, rkyv is an unenabled optional dep of rust_decimal and never enters the
+# graph, so there is nothing here to ignore. cargo-audit scans the raw,
+# feature-agnostic lockfile and does flag it. Two scanners disagreeing on the
+# same commit is the signature of a lockfile-only finding.
+#
+# CONSEQUENCE: flipping `all-features` to true above pulls optional deps into
+# this graph, and `cargo deny check advisories` will start failing on anything
+# suppressed only in .cargo/audit.toml. Mirror the relevant entries here (with
+# their justifications) in the same change.
 ignore = []
 
 # ---------------------------------------------------------------------------
