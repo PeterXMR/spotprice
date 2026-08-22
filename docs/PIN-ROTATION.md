@@ -32,8 +32,8 @@ overwritten on the next rotation.
 | Host | Leaf notAfter | `expiration` in XML | Issuer (intermediate) |
 |------|---------------|---------------------|-----------------------|
 | api.kraken.com | 2026-09-28 | **2026-09-23** | Google Trust Services WE1 |
-| api.coingecko.com | 2026-10-01 | 2026-09-26 | Google Trust Services WE1 |
-| api.coinbase.com | 2026-10-04 | 2026-09-29 | Google Trust Services WE1 |
+| api.coinbase.com | 2026-10-13 | 2026-10-08 | Google Trust Services WE1 |
+| api.coingecko.com | 2026-11-04 | 2026-10-30 | Let's Encrypt YE2 |
 | www.bitstamp.net | 2026-11-07 | 2026-11-02 | DigiCert EV RSA CA G2 |
 <!-- AUTO-PIN-TABLE:END -->
 
